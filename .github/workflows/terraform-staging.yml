@@ -21,6 +21,11 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
       AWS_REGION: auto
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SB_TOKEN }}
+      TF_VAR_supabase_database_password: ${{ secrets.SB_STAGING_DB_PASSWORD }}
+      TF_VAR_supabase_organization_id: ${{ vars.SUPABASE_ORGANIZATION_ID }}
+      TF_VAR_supabase_project_name: ${{ vars.SUPABASE_PROJECT_NAME }}
+      TF_VAR_supabase_region: ${{ vars.SUPABASE_REGION }}
       R2_BUCKET: ${{ vars.CF_R2_BUCKET }}
       R2_ENDPOINT: ${{ vars.CF_R2_ENDPOINT }}
 
@@ -30,13 +35,20 @@ jobs:
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
 
-      - name: Check required backend settings
+      - name: Check required settings
         shell: bash
         run: |
           set -euo pipefail
           test -n "$AWS_ACCESS_KEY_ID" || { echo "Missing staging secret CF_R2_ACCESS_ID" >&2; exit 1; }
           test -n "$AWS_SECRET_ACCESS_KEY" || { echo "Missing staging secret CF_R2_SECRET_ACCESS_KEY" >&2; exit 1; }
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Missing staging secret SB_TOKEN" >&2; exit 1; }
+          test -n "$TF_VAR_supabase_database_password" || { echo "Missing staging secret SB_STAGING_DB_PASSWORD" >&2; exit 1; }
+          test -n "$TF_VAR_supabase_organization_id" || { echo "Missing staging variable SUPABASE_ORGANIZATION_ID" >&2; exit 1; }
+          test -n "$TF_VAR_supabase_project_name" || { echo "Missing staging variable SUPABASE_PROJECT_NAME" >&2; exit 1; }
+          test -n "$TF_VAR_supabase_region" || { echo "Missing staging variable SUPABASE_REGION" >&2; exit 1; }
           test -n "$R2_BUCKET" || { echo "Missing staging variable CF_R2_BUCKET" >&2; exit 1; }
           test -n "$R2_ENDPOINT" || { echo "Missing staging variable CF_R2_ENDPOINT" >&2; exit 1; }
 
@@ -67,3 +79,7 @@ jobs:
       - name: Validate Terraform configuration
         run: terraform -chdir=infra/terraform validate
 
+      - name: Create Terraform plan
+        run: terraform -chdir=infra/terraform plan -input=false -no-color
+        env:
+          TF_VAR_supabase_database_password: ${{ secrets.SB_STAGING_DB_PASSWORD }}
