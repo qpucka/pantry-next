@@ -26,7 +26,8 @@ This checklist tracks the initial infrastructure setup for running Terraform fro
 - [x] Add a GitHub Actions workflow that declares `environment: staging`, uses the required backend secrets, and serializes staging runs. (The initial backend-check workflow is in place.)
 - [x] Rerun the GitHub Actions workflow after committing the variable-name mapping fix (`SB_ORG_ID`, `SB_PROJECT_NAME`, `SB_REGION`). Settings validation, R2 initialization, Terraform validation, and plan all succeeded. The plan did not apply/create resources.
 - [ ] Commit and push the updated Terraform configuration (explicit Nano size removed to avoid provider v1.11.0 bug) and state-inspection workflow. Manually run `Terraform staging state inspection`; it reports only resource addresses/status, never raw state or secret attributes.
-- [ ] Reconcile the existing Supabase project based on state inspection: if the resource is present but tainted, untaint it; if absent, import the project by its Supabase project reference. Run a fresh plan and confirm there is no replacement before any later apply.
+- [x] State inspection found `supabase_project.staging` marked `tainted` in R2 state. Supabase dashboard confirms the project exists.
+- [ ] Commit and push recovery workflow. Run `Terraform staging state recovery`. It validates the state identity, clears the tainted marker, creates a fresh plan, and refuses any plan containing a destroy/replacement. It never runs apply. Review its result; if it reports non-destructive changes, inspect the plan details before any future apply.
 - [ ] Review token scopes and expiration/rotation arrangements. The Supabase organization-level `Full Access` token is broad; reduce its scope/permissions if the provider and planned resources allow it.
 - [ ] Check Cloudflare R2 pricing and monitor usage. Keep state private and restrict access; Terraform state can contain sensitive resource attributes.
 

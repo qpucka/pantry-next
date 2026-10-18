@@ -1,4 +1,4 @@
-name: Terraform staging state inspection
+name: Terraform staging state recovery
 
 on:
   workflow_dispatch:
@@ -6,14 +6,14 @@ on:
 permissions:
   contents: read
 
-# Serialize all workflows accessing this staging state.
+# Serialize every workflow that accesses this staging state.
 concurrency:
   group: terraform-staging
   cancel-in-progress: false
 
 jobs:
-  inspect-state:
-    name: Safely inspect Terraform staging state
+  recover-state:
+    name: Untaint existing project and plan only
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -21,6 +21,11 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
       AWS_REGION: auto
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SB_TOKEN }}
+      TF_VAR_supabase_database_password: ${{ secrets.SB_STAGING_DB_PASSWORD }}
+      TF_VAR_supabase_organization_id: ${{ vars.SB_ORG_ID }}
+      TF_VAR_supabase_project_name: ${{ vars.SB_PROJECT_NAME }}
+      TF_VAR_supabase_region: ${{ vars.SB_REGION }}
       R2_BUCKET: ${{ vars.CF_R2_BUCKET }}
       R2_ENDPOINT: ${{ vars.CF_R2_ENDPOINT }}
 
@@ -33,14 +38,22 @@ jobs:
         with:
           terraform_wrapper: false
 
-      - name: Check required backend settings
+      - name: Check required settings
         shell: bash
         run: |
           set -euo pipefail
           test -n "$AWS_ACCESS_KEY_ID" || { echo "Missing secret CF_R2_ACCESS_ID" >&2; exit 1; }
           test -n "$AWS_SECRET_ACCESS_KEY" || { echo "Missing secret CF_R2_SECRET_ACCESS_KEY" >&2; exit 1; }
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Missing secret SB_TOKEN" >&2; exit 1; }
+          test -n "$TF_VAR_supabase_database_password" || { echo "Missing secret SB_STAGING_DB_PASSWORD" >&2; exit 1; }
+          test -n "$TF_VAR_supabase_organization_id" || { echo "Missing variable SB_ORG_ID" >&2; exit 1; }
+          test -n "$TF_VAR_supabase_project_name" || { echo "Missing variable SB_PROJECT_NAME" >&2; exit 1; }
+          test -n "$TF_VAR_supabase_region" || { echo "Missing variable SB_REGION" >&2; exit 1; }
           test -n "$R2_BUCKET" || { echo "Missing variable CF_R2_BUCKET" >&2; exit 1; }
           test -n "$R2_ENDPOINT" || { echo "Missing variable CF_R2_ENDPOINT" >&2; exit 1; }
+          test "$TF_VAR_supabase_project_name" = "pantry-next" || { echo "Unexpected project name; refusing state recovery" >&2; exit 1; }
+          test "$TF_VAR_supabase_organization_id" = "pevzfsvmmbpwzqhhzxhu" || { echo "Unexpected organization; refusing state recovery" >&2; exit 1; }
+          test "$TF_VAR_supabase_region" = "us-east-2" || { echo "Unexpected region; refusing state recovery" >&2; exit 1; }
 
       - name: Create temporary backend config
         shell: bash
@@ -66,24 +79,59 @@ jobs:
       - name: Initialize R2 backend
         run: terraform -chdir=infra/terraform init -input=false -reconfigure -backend-config="$RUNNER_TEMP/backend.hcl"
 
-      # State contains the database password. This script prints only resource
-      # addresses and instance status, never raw state or attribute values.
-      - name: Report state resource addresses and statuses only
+      # Never print raw state: it contains the database password.
+      - name: Verify tainted state is this existing project
         shell: bash
         run: |
           set -euo pipefail
           terraform -chdir=infra/terraform state pull | python3 -c '
           import json, sys
           state = json.load(sys.stdin)
-          print("Terraform state serial:", state.get("serial", "unknown"))
-          resources = state.get("resources", [])
-          found = False
-          for resource in resources:
-              module = resource.get("module")
-              address = (module + "." if module else "") + resource.get("type", "?") + "." + resource.get("name", "?")
-              for instance in resource.get("instances", []):
-                  found = True
-                  print(address, "status=" + instance.get("status", "ready"))
-          if not found:
-              print("No managed resource instances are recorded in state.")
+          matches = []
+          for resource in state.get("resources", []):
+              if resource.get("mode") == "managed" and resource.get("type") == "supabase_project" and resource.get("name") == "staging":
+                  for instance in resource.get("instances", []):
+                      matches.append((resource, instance))
+          if len(matches) != 1:
+              raise SystemExit(f"Refusing recovery: expected one supabase_project.staging state instance; found {len(matches)}")
+          resource, instance = matches[0]
+          attrs = instance.get("attributes", {})
+          checks = {"name": "pantry-next", "organization_id": "pevzfsvmmbpwzqhhzxhu", "region": "us-east-2"}
+          for key, expected in checks.items():
+              if attrs.get(key) != expected:
+                  raise SystemExit(f"Refusing recovery: state {key} did not match expected project")
+          if instance.get("status") != "tainted":
+              status = instance.get("status", "ready")
+              raise SystemExit(f"Refusing recovery: expected tainted state, got {status}")
+          project_ref = attrs.get("id")
+          if not project_ref:
+              raise SystemExit("Refusing recovery: project reference is missing from state")
+          print("Verified tainted state for pantry-next / us-east-2. Project reference:", project_ref)
+          print("No passwords or other secret attributes were printed.")
+          '
+
+      - name: Clear Terraform tainted marker
+        run: terraform -chdir=infra/terraform untaint -lock-timeout=5m supabase_project.staging
+
+      - name: Create fresh recovery plan (no apply)
+        run: terraform -chdir=infra/terraform plan -input=false -no-color -out="$RUNNER_TEMP/recovery.tfplan"
+
+      - name: Verify recovery plan has no destroy or replacement
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=infra/terraform show -json "$RUNNER_TEMP/recovery.tfplan" |
+            python3 -c '
+          import json, sys
+          plan = json.load(sys.stdin)
+          changes = [c for c in plan.get("resource_changes", []) if c.get("change", {}).get("actions") != ["no-op"]]
+          for change in changes:
+              actions = change.get("change", {}).get("actions", [])
+              print(change.get("address", "unknown"), "actions=" + ",".join(actions))
+              if "delete" in actions:
+                  raise SystemExit("Refusing recovery: plan contains a destroy or replacement. No apply was run.")
+          if not changes:
+              print("Recovery plan is clean: no resource changes. No apply was run.")
+          else:
+              print("Plan has non-destructive changes for review only. No apply was run.")
           '
