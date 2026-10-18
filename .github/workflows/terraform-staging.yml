@@ -23,9 +23,9 @@ jobs:
       AWS_REGION: auto
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SB_TOKEN }}
       TF_VAR_supabase_database_password: ${{ secrets.SB_STAGING_DB_PASSWORD }}
-      TF_VAR_supabase_organization_id: ${{ vars.SUPABASE_ORGANIZATION_ID }}
-      TF_VAR_supabase_project_name: ${{ vars.SUPABASE_PROJECT_NAME }}
-      TF_VAR_supabase_region: ${{ vars.SUPABASE_REGION }}
+      TF_VAR_supabase_organization_id: ${{ vars.SB_ORG_ID }}
+      TF_VAR_supabase_project_name: ${{ vars.SB_PROJECT_NAME }}
+      TF_VAR_supabase_region: ${{ vars.SB_REGION }}
       R2_BUCKET: ${{ vars.CF_R2_BUCKET }}
       R2_ENDPOINT: ${{ vars.CF_R2_ENDPOINT }}
 
@@ -46,9 +46,9 @@ jobs:
           test -n "$AWS_SECRET_ACCESS_KEY" || { echo "Missing staging secret CF_R2_SECRET_ACCESS_KEY" >&2; exit 1; }
           test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Missing staging secret SB_TOKEN" >&2; exit 1; }
           test -n "$TF_VAR_supabase_database_password" || { echo "Missing staging secret SB_STAGING_DB_PASSWORD" >&2; exit 1; }
-          test -n "$TF_VAR_supabase_organization_id" || { echo "Missing staging variable SUPABASE_ORGANIZATION_ID" >&2; exit 1; }
-          test -n "$TF_VAR_supabase_project_name" || { echo "Missing staging variable SUPABASE_PROJECT_NAME" >&2; exit 1; }
-          test -n "$TF_VAR_supabase_region" || { echo "Missing staging variable SUPABASE_REGION" >&2; exit 1; }
+          test -n "$TF_VAR_supabase_organization_id" || { echo "Missing staging variable SB_ORG_ID" >&2; exit 1; }
+          test -n "$TF_VAR_supabase_project_name" || { echo "Missing staging variable SB_PROJECT_NAME" >&2; exit 1; }
+          test -n "$TF_VAR_supabase_region" || { echo "Missing staging variable SB_REGION" >&2; exit 1; }
           test -n "$R2_BUCKET" || { echo "Missing staging variable CF_R2_BUCKET" >&2; exit 1; }
           test -n "$R2_ENDPOINT" || { echo "Missing staging variable CF_R2_ENDPOINT" >&2; exit 1; }
 
