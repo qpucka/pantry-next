@@ -1,4 +1,4 @@
-name: Terraform staging
+name: Terraform staging plan
 
 on:
   workflow_dispatch:
@@ -21,6 +21,8 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
       AWS_REGION: auto
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ vars.CF_ACCOUNT_ID }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SB_TOKEN }}
       TF_VAR_supabase_database_password: ${{ secrets.SB_STAGING_DB_PASSWORD }}
       TF_VAR_supabase_organization_id: ${{ vars.SB_ORG_ID }}
@@ -44,6 +46,8 @@ jobs:
           set -euo pipefail
           test -n "$AWS_ACCESS_KEY_ID" || { echo "Missing staging secret CF_R2_ACCESS_ID" >&2; exit 1; }
           test -n "$AWS_SECRET_ACCESS_KEY" || { echo "Missing staging secret CF_R2_SECRET_ACCESS_KEY" >&2; exit 1; }
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing staging secret CF_TOKEN" >&2; exit 1; }
+          test -n "$TF_VAR_cloudflare_account_id" || { echo "Missing staging variable CF_ACCOUNT_ID" >&2; exit 1; }
           test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Missing staging secret SB_TOKEN" >&2; exit 1; }
           test -n "$TF_VAR_supabase_database_password" || { echo "Missing staging secret SB_STAGING_DB_PASSWORD" >&2; exit 1; }
           test -n "$TF_VAR_supabase_organization_id" || { echo "Missing staging variable SB_ORG_ID" >&2; exit 1; }
@@ -81,5 +85,3 @@ jobs:
 
       - name: Create Terraform plan
         run: terraform -chdir=infra/terraform plan -input=false -no-color
-        env:
-          TF_VAR_supabase_database_password: ${{ secrets.SB_STAGING_DB_PASSWORD }}

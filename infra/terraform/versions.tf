@@ -6,5 +6,9 @@ terraform {
       source  = "supabase/supabase"
       version = "~> 1.11.0"
     }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.28"
+    }
   }
 }

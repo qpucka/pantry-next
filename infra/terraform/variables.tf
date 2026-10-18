@@ -22,3 +22,9 @@ variable "supabase_database_password" {
   sensitive   = true
   nullable    = false
 }
+
+variable "cloudflare_account_id" {
+  description = "Cloudflare account ID for the staging Worker, supplied via GitHub environment variable."
+  type        = string
+  nullable    = false
+}

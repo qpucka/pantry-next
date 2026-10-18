@@ -1,4 +1,4 @@
-name: Terraform staging state recovery
+name: Terraform staging plan and state check
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   recover-state:
-    name: Untaint existing project and plan only
+    name: Plan managed staging resources only
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -21,6 +21,8 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
       AWS_REGION: auto
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ vars.CF_ACCOUNT_ID }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SB_TOKEN }}
       TF_VAR_supabase_database_password: ${{ secrets.SB_STAGING_DB_PASSWORD }}
       TF_VAR_supabase_organization_id: ${{ vars.SB_ORG_ID }}
@@ -44,6 +46,8 @@ jobs:
           set -euo pipefail
           test -n "$AWS_ACCESS_KEY_ID" || { echo "Missing secret CF_R2_ACCESS_ID" >&2; exit 1; }
           test -n "$AWS_SECRET_ACCESS_KEY" || { echo "Missing secret CF_R2_SECRET_ACCESS_KEY" >&2; exit 1; }
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing secret CF_TOKEN" >&2; exit 1; }
+          test -n "$TF_VAR_cloudflare_account_id" || { echo "Missing variable CF_ACCOUNT_ID" >&2; exit 1; }
           test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Missing secret SB_TOKEN" >&2; exit 1; }
           test -n "$TF_VAR_supabase_database_password" || { echo "Missing secret SB_STAGING_DB_PASSWORD" >&2; exit 1; }
           test -n "$TF_VAR_supabase_organization_id" || { echo "Missing variable SB_ORG_ID" >&2; exit 1; }
@@ -53,7 +57,9 @@ jobs:
           test -n "$R2_ENDPOINT" || { echo "Missing variable CF_R2_ENDPOINT" >&2; exit 1; }
           test "$TF_VAR_supabase_project_name" = "pantry-next" || { echo "Unexpected project name; refusing state recovery" >&2; exit 1; }
           test "$TF_VAR_supabase_organization_id" = "pevzfsvmmbpwzqhhzxhu" || { echo "Unexpected organization; refusing state recovery" >&2; exit 1; }
-          test "$TF_VAR_supabase_region" = "us-east-2" || { echo "Unexpected region; refusing state recovery" >&2; exit 1; }
+          test "$TF_VAR_supabase_region" = "us-east-2" || { echo "Unexpected region; refusing staging plan" >&2; exit 1; }
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing secret CF_TOKEN" >&2; exit 1; }
+          test -n "$TF_VAR_cloudflare_account_id" || { echo "Missing variable CF_ACCOUNT_ID" >&2; exit 1; }
 
       - name: Create temporary backend config
         shell: bash
@@ -80,7 +86,7 @@ jobs:
         run: terraform -chdir=infra/terraform init -input=false -reconfigure -backend-config="$RUNNER_TEMP/backend.hcl"
 
       # Never print raw state: it contains the database password.
-      - name: Verify tainted state is this existing project
+      - name: Verify Terraform state contains the existing project
         shell: bash
         run: |
           set -euo pipefail
@@ -100,27 +106,24 @@ jobs:
           for key, expected in checks.items():
               if attrs.get(key) != expected:
                   raise SystemExit(f"Refusing recovery: state {key} did not match expected project")
-          if instance.get("status") != "tainted":
-              status = instance.get("status", "ready")
-              raise SystemExit(f"Refusing recovery: expected tainted state, got {status}")
+          status = instance.get("status", "ready")
+          if status == "tainted":
+              raise SystemExit("State is tainted; stop and investigate before planning or applying.")
           project_ref = attrs.get("id")
           if not project_ref:
               raise SystemExit("Refusing recovery: project reference is missing from state")
-          print("Verified tainted state for pantry-next / us-east-2. Project reference:", project_ref)
+          print("Verified existing Supabase project in state. Project reference:", project_ref)
           print("No passwords or other secret attributes were printed.")
           '
 
-      - name: Clear Terraform tainted marker
-        run: terraform -chdir=infra/terraform untaint -lock-timeout=5m supabase_project.staging
-
-      - name: Create fresh recovery plan (no apply)
-        run: terraform -chdir=infra/terraform plan -input=false -no-color -out="$RUNNER_TEMP/recovery.tfplan"
+      - name: Create fresh plan (no apply)
+        run: terraform -chdir=infra/terraform plan -input=false -no-color -out="$RUNNER_TEMP/staging.tfplan"
 
       - name: Verify recovery plan has no destroy or replacement
         shell: bash
         run: |
           set -euo pipefail
-          terraform -chdir=infra/terraform show -json "$RUNNER_TEMP/recovery.tfplan" |
+          terraform -chdir=infra/terraform show -json "$RUNNER_TEMP/staging.tfplan" |
             python3 -c '
           import json, sys
           plan = json.load(sys.stdin)
