@@ -1,0 +1,19 @@
+# Terraform working files, state, plans, and local variable files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.plan
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+
+# Local credentials and environment files
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# Local notes/credential scratch files
+/tokens
