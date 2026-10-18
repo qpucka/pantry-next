@@ -1,0 +1,69 @@
+name: Terraform staging
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialize all workflow runs that operate on this staging state.
+concurrency:
+  group: terraform-staging
+  cancel-in-progress: false
+
+jobs:
+  backend-check:
+    name: Initialize R2 backend and validate
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
+      AWS_REGION: auto
+      R2_BUCKET: ${{ vars.CF_R2_BUCKET }}
+      R2_ENDPOINT: ${{ vars.CF_R2_ENDPOINT }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Check required backend settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$AWS_ACCESS_KEY_ID" || { echo "Missing staging secret CF_R2_ACCESS_ID" >&2; exit 1; }
+          test -n "$AWS_SECRET_ACCESS_KEY" || { echo "Missing staging secret CF_R2_SECRET_ACCESS_KEY" >&2; exit 1; }
+          test -n "$R2_BUCKET" || { echo "Missing staging variable CF_R2_BUCKET" >&2; exit 1; }
+          test -n "$R2_ENDPOINT" || { echo "Missing staging variable CF_R2_ENDPOINT" >&2; exit 1; }
+
+      - name: Create temporary backend config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/backend.hcl" <<EOF
+          bucket = "$R2_BUCKET"
+          key    = "pantry-manager/staging/terraform.tfstate"
+          region = "auto"
+
+          endpoints = {
+            s3 = "$R2_ENDPOINT"
+          }
+
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          skip_region_validation      = true
+          skip_requesting_account_id  = true
+          skip_s3_checksum            = true
+          use_path_style              = true
+          EOF
+
+      - name: Initialize remote backend
+        run: terraform -chdir=infra/terraform init -input=false -reconfigure -backend-config="$RUNNER_TEMP/backend.hcl"
+
+      - name: Validate Terraform configuration
+        run: terraform -chdir=infra/terraform validate
+
