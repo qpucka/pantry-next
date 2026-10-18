@@ -3,7 +3,6 @@ resource "supabase_project" "staging" {
   name              = var.supabase_project_name
   database_password = var.supabase_database_password
   region            = var.supabase_region
-  instance_size     = "nano"
 }
 
 output "supabase_project_ref" {
