@@ -32,8 +32,9 @@ This checklist tracks the initial infrastructure setup for running Terraform fro
 - [x] Add minimal health-check Worker source at `apps/healthcheck/src/index.js` (`GET /health` returns `{"status":"ok"}`; other paths return 404; non-GET returns 405).
 - [x] Add Terraform Cloudflare provider and Worker/version/deployment configuration in `infra/terraform/cloudflare.tf`. The staging plan workflow expects `CF_TOKEN` and `CF_ACCOUNT_ID` and includes a plan-only step for the Worker.
 - [ ] Add `CF_ACCOUNT_ID` to GitHub `staging` environment variables (Cloudflare account ID, non-secret).
-- [ ] Commit and push the Worker/Terraform/workflow changes. Run `Terraform staging plan` to review the full plan. `Terraform staging plan and state check` additionally verifies the existing Supabase state and refuses destroy/replacement plans.
-- [ ] To deploy only the health-check Worker, first review the latest plan, then run `Terraform staging deploy health check` with confirmation `DEPLOY pantry-next-healthcheck`. It creates a fresh plan, verifies that only the Worker and its version will be created, then applies that exact plan. Consider requiring GitHub staging environment reviewers before running it.
+- [x] Commit and push the Worker/Terraform/workflow changes. Run `Terraform staging plan` to review the full plan. `Terraform staging plan and state check` additionally verifies the existing Supabase state and refuses destroy/replacement plans.
+- [x] Deploy the health-check Worker through the manually triggered, plan-guarded `Terraform staging deploy health check` workflow. Applied 2 resources and no changes/deletions.
+- [x] Verify `https://pantry-next-healthcheck.jbeyer.workers.dev/health` returns HTTP 200 with `{"status":"ok"}`; `/` returns 404 and `POST /health` returns 405.
 - [ ] Check Cloudflare R2 pricing and monitor usage. Keep state private and restrict access; Terraform state can contain sensitive resource attributes.
 
 ## Security reminders
