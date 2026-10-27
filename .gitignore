@@ -1,0 +1,27 @@
+# Dependency installs
+node_modules/
+
+# Terraform working files, state, plans, and local variable files
+**/.terraform/*
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.plan
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+
+# Cloudflare Wrangler local state and generated deployment config
+.wrangler/
+apps/web/.wrangler-deploy.json
+
+# Local credentials and environment files
+.env
+.env.*
+!.env.example
+.dev.vars
+
+
+apps/web/dist/

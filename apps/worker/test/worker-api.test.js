@@ -1,0 +1,77 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import worker from "../src/index.ts";
+
+const minimalEnv = {
+  ASSETS: { fetch: async () => new Response("static asset", { status: 200 }) },
+};
+
+test("health endpoint responds without accessing credentials or database", async () => {
+  const response = await worker.fetch(new Request("https://pantry.test/api/health"), minimalEnv);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: "ok", service: "pantry-next" });
+});
+
+test("unknown API routes return JSON 404", async () => {
+  const response = await worker.fetch(new Request("https://pantry.test/api/not-a-route"), minimalEnv);
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), { error: "Not found." });
+});
+
+test("non-API paths are served from the assets binding", async () => {
+  const response = await worker.fetch(new Request("https://pantry.test/"), minimalEnv);
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), "static asset");
+});
+
+test("organization registration rejects missing/invalid fields before external calls", async () => {
+  const cases = [
+    [{ organizationName: "Food pantry", email: "admin@example.org", password: "long-enough-password", timezone: "Not/AZone" }, /time zone/i],
+    [{ organizationName: "", email: "admin@example.org", password: "long-enough-password", timezone: "America/Chicago" }, /organization name/i],
+    [{ organizationName: "Food pantry", email: "not-email", password: "long-enough-password", timezone: "America/Chicago" }, /email/i],
+    [{ organizationName: "Food pantry", email: "admin@example.org", password: "short", timezone: "America/Chicago" }, /password/i],
+  ];
+
+  for (const [body, message] of cases) {
+    const response = await worker.fetch(
+      new Request("https://pantry.test/api/register", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "https://pantry.test" },
+        body: JSON.stringify(body),
+      }),
+      minimalEnv,
+    );
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, message);
+  }
+});
+
+test("cross-origin and origin-less browser writes are rejected", async () => {
+  const crossOrigin = await worker.fetch(
+    new Request("https://pantry.test/api/register", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "https://attacker.test" },
+      body: JSON.stringify({}),
+    }),
+    minimalEnv,
+  );
+  assert.equal(crossOrigin.status, 403);
+
+  const noOrigin = await worker.fetch(
+    new Request("https://pantry.test/api/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    }),
+    minimalEnv,
+  );
+  assert.equal(noOrigin.status, 403);
+});
+
+test("platform organizations endpoint requires an authenticated session", async () => {
+  const response = await worker.fetch(
+    new Request("https://pantry.test/api/platform/organizations"),
+    minimalEnv,
+  );
+  assert.equal(response.status, 401);
+});

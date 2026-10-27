@@ -1,0 +1,104 @@
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.event.repository.name }}-infra
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply Terraform configuration
+    runs-on: ubuntu-latest
+    environment: terraform
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+
+      AWS_ACCESS_KEY_ID:     ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+      AWS_ENDPOINT_URL_S3:   ${{ vars.CLOUDFLARE_R2_ENDPOINT }}
+      AWS_REGION:            auto
+
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      CLOUDFLARE_R2_BUCKET: ${{ vars.CLOUDFLARE_R2_BUCKET }}
+
+      TF_VAR_supabase_database_password:   ${{ secrets.SUPABASE_DB_PASSWORD }}
+      TF_VAR_hyperdrive_database_password: ${{ secrets.HYPERDRIVE_DB_PASSWORD }}
+      TF_VAR_supabase_organization_id:     ${{ vars.SUPABASE_ORG_ID }}
+      TF_VAR_supabase_project_name:      ${{ vars.SUPABASE_PROJECT_NAME }}
+      TF_VAR_supabase_region:            ${{ vars.SUPABASE_REGION }}
+      TF_VAR_cloudflare_account_id:      ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - name: Verify env values
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required=(
+            AWS_ACCESS_KEY_ID
+            AWS_SECRET_ACCESS_KEY
+            AWS_REGION
+            AWS_ENDPOINT_URL_S3
+
+            SUPABASE_ACCESS_TOKEN
+            CLOUDFLARE_API_TOKEN
+
+            CLOUDFLARE_R2_BUCKET
+
+            TF_VAR_supabase_database_password
+            TF_VAR_hyperdrive_database_password
+            TF_VAR_supabase_organization_id
+            TF_VAR_supabase_project_name
+            TF_VAR_supabase_region
+            TF_VAR_cloudflare_account_id
+          )
+
+          missing=()
+          for name in "${required[@]}"; do
+            [[ -n "${!name:-}" ]] || missing+=("$name")
+          done
+
+          if ((${#missing[@]})); then
+            printf 'Missing required setting: %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+      - name: Initialize R2 backend
+        shell: bash
+        run: |
+          terraform -chdir=infra/terraform init -input=false -reconfigure \
+            -backend-config="bucket=$CLOUDFLARE_R2_BUCKET"
+
+      - name: Terraform validate
+        run: terraform -chdir=infra/terraform validate
+
+      - name: Terraform plan
+        run: terraform -chdir=infra/terraform plan -input=false -no-color -out="$RUNNER_TEMP/terraform.tfplan"
+
+      - name: Terraform apply
+        run: terraform -chdir=infra/terraform apply -input=false -no-color "$RUNNER_TEMP/terraform.tfplan"
+
+      - name: Show created resource identifiers
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Supabase project reference: $(terraform -chdir=infra/terraform output -raw supabase_project_ref)"

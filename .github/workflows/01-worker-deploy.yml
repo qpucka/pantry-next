@@ -1,0 +1,138 @@
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/worker/**"
+
+concurrency:
+  group: ${{ github.event.repository.name }}-infra
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Pantry Next Worker
+    runs-on: ubuntu-latest
+    environment: terraform
+    defaults:
+      run:
+        working-directory: apps/worker
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+      AWS_REGION: auto
+      AWS_ENDPOINT_URL_S3: ${{ vars.CLOUDFLARE_R2_ENDPOINT }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_R2_BUCKET: ${{ vars.CLOUDFLARE_R2_BUCKET }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify required settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_R2_BUCKET \
+            AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_ENDPOINT_URL_S3; do
+            [[ -n "${!name:-}" ]] || missing+=("$name")
+          done
+          if ((${#missing[@]})); then
+            printf 'Missing setting: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Build web application
+        working-directory: apps/web
+        run: npm run build
+
+      - name: Install Worker dependencies
+        run: npm ci
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - name: Read deployment settings from Terraform state
+        shell: bash
+        working-directory: .
+        run: |
+          set -euo pipefail
+          terraform -chdir=infra/terraform init -input=false -reconfigure \
+            -backend-config="bucket=$CLOUDFLARE_R2_BUCKET"
+
+          worker_name="$(terraform -chdir=infra/terraform output -raw worker_name)"
+          supabase_url="$(terraform -chdir=infra/terraform output -raw supabase_url)"
+          supabase_publishable_key="$(terraform -chdir=infra/terraform output -raw supabase_publishable_key)"
+          echo "::add-mask::$supabase_publishable_key"
+
+          missing=()
+          [[ -n "$worker_name" ]] || missing+=(worker_name)
+          [[ -n "$supabase_url" ]] || missing+=(supabase_url)
+          [[ -n "$supabase_publishable_key" ]] || missing+=(supabase_publishable_key)
+          if ((${#missing[@]})); then
+            printf 'Terraform state is missing required output: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+          {
+            echo "WORKER_NAME=$worker_name"
+            echo "SUPABASE_URL=$supabase_url"
+            echo "SUPABASE_PUBLISHABLE_KEY=$supabase_publishable_key"
+          } >> "$GITHUB_ENV"
+
+      - name: Upload Worker version
+        shell: bash
+        env:
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-upload.jsonl
+        run: |
+          set -euo pipefail
+          rm -f "$WRANGLER_OUTPUT_FILE_PATH"
+
+          # Wrangler uploads a new version with bindings_inherit=strict. Since
+          # this config omits HYPERDRIVE, Cloudflare inherits that binding from
+          # the existing Worker version without requiring its Hyperdrive ID.
+          npx --yes wrangler@4.152.0 versions upload \
+            --name "$WORKER_NAME" \
+            --var "SUPABASE_URL:$SUPABASE_URL" \
+            --var "SUPABASE_PUBLISHABLE_KEY:$SUPABASE_PUBLISHABLE_KEY"
+
+          version_id="$(jq -r '.version_id // empty' "$WRANGLER_OUTPUT_FILE_PATH")"
+          if [[ -z "$version_id" ]]; then
+            echo "Wrangler did not return an uploaded version ID." >&2
+            cat "$WRANGLER_OUTPUT_FILE_PATH" >&2
+            exit 1
+          fi
+          echo "WORKER_VERSION_ID=$version_id" >> "$GITHUB_ENV"
+
+      - name: Deploy Worker version
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.152.0 versions deploy \
+            --name "$WORKER_NAME" \
+            --version-id "$WORKER_VERSION_ID" \
+            --percentage 100 \
+            --yes
+
+      - name: Clean up
+        if: always()
+        shell: bash
+        working-directory: .
+        run: rm -f "$RUNNER_TEMP/wrangler-upload.jsonl" && rm -rf infra/terraform/.terraform

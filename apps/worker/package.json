@@ -1,0 +1,19 @@
+{
+  "name": "pantry-next-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "dev": "npx --yes wrangler@4.152.0 dev --config wrangler.json",
+    "deploy": "bash scripts/deploy-worker.sh"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "@electric-sql/pglite": "^0.3.16",
+    "typescript": "~5.7.2"
+  }
+}
