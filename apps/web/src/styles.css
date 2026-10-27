@@ -13,6 +13,7 @@ body { margin: 0; min-width: 320px; }
 .shell {
   align-items: center;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   min-height: 100vh;
   padding: 2rem;
@@ -41,3 +42,4 @@ h1 { font-size: clamp(2.5rem, 8vw, 5rem); line-height: 0.95; margin: 0; }
 .message { color: #51635e; font-size: 1.15rem; line-height: 1.6; margin: 1.5rem 0 2rem; }
 .status { align-items: center; display: flex; gap: 0.6rem; font-weight: 700; }
 .dot { background: #25855f; border-radius: 50%; height: 0.75rem; width: 0.75rem; }
+.build-info { color: #71817b; font-size: 0.75rem; margin-top: 1.25rem; }

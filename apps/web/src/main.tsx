@@ -2,6 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
+const commitSha = import.meta.env.VITE_COMMIT_SHA || "local";
+
 function App() {
   return (
     <main className="shell">
@@ -16,6 +18,7 @@ function App() {
           Worker connected
         </div>
       </section>
+      <footer className="build-info">Build {commitSha}</footer>
     </main>
   );
 }

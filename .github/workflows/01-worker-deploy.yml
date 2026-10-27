@@ -56,6 +56,9 @@ jobs:
         working-directory: apps/web
         run: npm ci
 
+      - name: Set web build metadata
+        run: echo "VITE_COMMIT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
       - name: Build web application
         working-directory: apps/web
         run: npm run build
