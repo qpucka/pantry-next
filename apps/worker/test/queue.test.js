@@ -12,16 +12,14 @@ import {
 } from "../src/queue.ts";
 import { registerOrganization } from "../src/database.ts";
 
-const migrations = ["20261025110000_shared_registry.sql", "20261025110100_worker_privileges.sql", "20261025110200_worker_registry_access.sql"];
+const registryFixture = new URL("./fixtures/shared-registry.sql", import.meta.url);
 const userA = "00000000-0000-0000-0000-000000000001";
 const userB = "00000000-0000-0000-0000-000000000002";
 
 async function setup() {
   const db = new PGlite();
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid primary key);`);
-  for (const file of migrations) {
-    await db.exec(await readFile(new URL(`../../../supabase/migrations/${file}`, import.meta.url), "utf8"));
-  }
+  await db.exec(await readFile(registryFixture, "utf8"));
   await db.query("INSERT INTO auth.users VALUES ($1), ($2)", [userA, userB]);
   const orgA = await registerOrganization(db, { name: "A", timezone: "America/Chicago", ownerUserId: userA });
   const orgB = await registerOrganization(db, { name: "B", timezone: "America/Chicago", ownerUserId: userB });

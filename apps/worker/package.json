@@ -3,8 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=26 <27"
+  },
   "scripts": {
-    "test": "node --test",
+    "test": "node --experimental-strip-types --test",
+    "typecheck": "tsc --noEmit",
     "dev": "npx --yes wrangler@4.152.0 dev --config wrangler.json",
     "deploy": "bash scripts/deploy-worker.sh"
   },

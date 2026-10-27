@@ -1,9 +1,38 @@
 import pg from "pg";
-import { registerOrganization as registerOrganizationInDatabase } from "./database.js";
-import { clearQueue, checkInClient, moveClientToShopping, QueueError, readQueue, resolveMembership } from "./queue.js";
-import { OrganizationRealtimeRoom, publishOrganizationChange } from "./realtime.js";
+import { registerOrganization as registerOrganizationInDatabase, type DatabaseClient } from "./database.ts";
+import { clearQueue, checkInClient, moveClientToShopping, QueueError, readQueue, resolveMembership, type CheckInInput, type Membership } from "./queue.ts";
+import { OrganizationRealtimeRoom, publishOrganizationChange, type RealtimeNamespace } from "./realtime.ts";
 
 export { OrganizationRealtimeRoom };
+
+interface WorkerEnv {
+  HYPERDRIVE?: { connectionString: string };
+  SUPABASE_URL?: string;
+  SUPABASE_PUBLISHABLE_KEY?: string;
+  ORG_REALTIME?: RealtimeNamespace;
+  ASSETS: { fetch(request: Request): Promise<Response> };
+}
+
+interface AuthUser {
+  id: string;
+  email?: string;
+}
+
+interface AuthSession {
+  access_token: string;
+  refresh_token: string;
+  expires_in?: number;
+  user: AuthUser;
+}
+
+interface AuthContext {
+  user: AuthUser;
+  refreshedSession: AuthSession | null;
+}
+
+interface JsonObject {
+  [key: string]: unknown;
+}
 
 const { Client } = pg;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -12,18 +41,18 @@ const ACCESS_COOKIE = "pantry_access";
 const REFRESH_COOKIE = "pantry_refresh";
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 
-function json(data, status = 200, headers = {}) {
+function json(data: unknown, status = 200, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...JSON_HEADERS, ...headers },
   });
 }
 
-function badRequest(message) {
+function badRequest(message: string): Response {
   return json({ error: message }, 400);
 }
 
-async function withDatabase(env, fn) {
+async function withDatabase<T>(env: WorkerEnv, fn: (client: DatabaseClient) => Promise<T>): Promise<T> {
   if (!env.HYPERDRIVE?.connectionString) throw new Error("Database is not configured");
   const client = new Client({
     connectionString: env.HYPERDRIVE.connectionString,
@@ -38,23 +67,23 @@ async function withDatabase(env, fn) {
   }
 }
 
-async function parseJson(request) {
+async function parseJson(request: Request): Promise<JsonObject | null> {
   try {
-    const data = await request.json();
+    const data: unknown = await request.json();
     if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-    return data;
+    return data as JsonObject;
   } catch {
     return null;
   }
 }
 
-function normalizeEmail(value) {
+function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const email = value.trim().toLowerCase();
   return email.length <= 320 && EMAIL_RE.test(email) ? email : null;
 }
 
-function validTimezone(value) {
+function validTimezone(value: unknown): boolean {
   if (typeof value !== "string" || value.length > 80) return false;
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: value });
@@ -64,7 +93,7 @@ function validTimezone(value) {
   }
 }
 
-function getCookies(request) {
+function getCookies(request: Request): Map<string, string> {
   const raw = request.headers.get("cookie") ?? "";
   const cookies = new Map();
   for (const segment of raw.split(";")) {
@@ -77,18 +106,18 @@ function getCookies(request) {
   return cookies;
 }
 
-function cookieHeader(name, value, maxAge) {
+function cookieHeader(name: string, value: string, maxAge: number): string {
   return `${name}=${encodeURIComponent(value)}; Path=/api; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.max(0, Math.floor(maxAge))}`;
 }
 
-function appendCookies(headers, session) {
+function appendCookies(headers: Headers, session: AuthSession): Headers {
   const maxAge = Number.isFinite(session.expires_in) ? session.expires_in : 3600;
   headers.append("set-cookie", cookieHeader(ACCESS_COOKIE, session.access_token, maxAge));
   headers.append("set-cookie", cookieHeader(REFRESH_COOKIE, session.refresh_token, 60 * 60 * 24 * 30));
   return headers;
 }
 
-function sessionHeaders(session) {
+function sessionHeaders(session: AuthSession): Headers {
   return appendCookies(new Headers({ "cache-control": "no-store" }), session);
 }
 
@@ -99,9 +128,19 @@ function clearSessionHeaders() {
   return headers;
 }
 
-async function supabaseAuthRequest(env, path, { method = "GET", body, accessToken } = {}) {
+interface AuthRequestOptions {
+  method?: string;
+  body?: JsonObject;
+  accessToken?: string;
+}
+
+async function supabaseAuthRequest(
+  env: WorkerEnv,
+  path: string,
+  { method = "GET", body, accessToken }: AuthRequestOptions = {},
+): Promise<Response> {
   if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) throw new Error("Authentication is not configured");
-  const headers = { apikey: env.SUPABASE_PUBLISHABLE_KEY, "content-type": "application/json" };
+  const headers: Record<string, string> = { apikey: env.SUPABASE_PUBLISHABLE_KEY, "content-type": "application/json" };
   if (accessToken) headers.authorization = `Bearer ${accessToken}`;
   return fetch(`${env.SUPABASE_URL.replace(/\/$/, "")}${path}`, {
     method,
@@ -110,15 +149,15 @@ async function supabaseAuthRequest(env, path, { method = "GET", body, accessToke
   });
 }
 
-async function requestAuthUser(env, accessToken) {
+async function requestAuthUser(env: WorkerEnv, accessToken: string): Promise<AuthUser | null> {
   const response = await supabaseAuthRequest(env, "/auth/v1/user", { accessToken });
   if (!response.ok) return null;
-  const user = await response.json();
-  if (!UUID_RE.test(user?.id ?? "")) return null;
-  return user;
+  const user = await response.json() as Partial<AuthUser>;
+  if (!UUID_RE.test(user.id ?? "")) return null;
+  return { id: user.id, email: user.email };
 }
 
-async function requireUser(request, env) {
+async function requireUser(request: Request, env: WorkerEnv): Promise<AuthContext | null> {
   const cookies = getCookies(request);
   const accessToken = cookies.get(ACCESS_COOKIE);
   if (accessToken) {
@@ -134,22 +173,22 @@ async function requireUser(request, env) {
     body: { refresh_token: refreshToken },
   });
   if (!response.ok) return null;
-  const session = await response.json();
-  if (!session.access_token || !session.refresh_token) return null;
+  const session = await response.json() as Partial<AuthSession>;
+  if (!session.access_token || !session.refresh_token || !session.user) return null;
   const user = await requestAuthUser(env, session.access_token);
   if (!user) return null;
-  return { user, refreshedSession: session };
+  return { user, refreshedSession: session as AuthSession };
 }
 
-async function authenticatePassword(env, email, password) {
+async function authenticatePassword(env: WorkerEnv, email: string, password: string): Promise<AuthSession | null> {
   const response = await supabaseAuthRequest(env, "/auth/v1/token?grant_type=password", {
     method: "POST",
     body: { email, password },
   });
   if (!response.ok) return null;
-  const session = await response.json();
-  if (!UUID_RE.test(session?.user?.id ?? "") || !session.access_token || !session.refresh_token) return null;
-  return session;
+  const session = await response.json() as Partial<AuthSession>;
+  if (!session.user || !UUID_RE.test(session.user.id ?? "") || !session.access_token || !session.refresh_token) return null;
+  return session as AuthSession;
 }
 
 async function registerOrganization(request, env) {
@@ -175,8 +214,8 @@ async function registerOrganization(request, env) {
   if (!signup.ok) {
     return json({ error: "Registration could not be completed. Check the details or sign in if you already have an account." }, 409);
   }
-  const session = await signup.json();
-  const userId = session?.user?.id;
+  const session = await signup.json() as Partial<AuthSession>;
+  const userId = session.user?.id;
   if (!UUID_RE.test(userId ?? "") || !session.access_token || !session.refresh_token) {
     return json({ error: "Registration needs account verification before setup can continue." }, 409);
   }
@@ -185,7 +224,7 @@ async function registerOrganization(request, env) {
     const organization = await withDatabase(env, (client) =>
       registerOrganizationInDatabase(client, { name, timezone, ownerUserId: userId }),
     );
-    return json({ organizationId: organization.id, organizationName: name }, 201, sessionHeaders(session));
+    return json({ organizationId: organization.id, organizationName: name }, 201, sessionHeaders(session as AuthSession));
   } catch (error) {
     console.error("Organization provisioning failed", error instanceof Error ? error.message : "unknown error");
     return json({ error: "Your account was created, but organization setup did not complete. Sign in and retry setup." }, 503);

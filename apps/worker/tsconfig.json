@@ -6,6 +6,7 @@
     "lib": ["ES2022", "WebWorker"],
     "types": ["@cloudflare/workers-types"],
     "allowJs": false,
+    "allowImportingTsExtensions": true,
     "checkJs": false,
     "noEmit": true,
     "skipLibCheck": true,

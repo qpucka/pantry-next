@@ -4,12 +4,7 @@ import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { createTenantSchema, registerOrganization } from "../src/database.ts";
 
-const migration = (name) => new URL(`../../../supabase/migrations/${name}`, import.meta.url);
-const migrations = [
-  migration("20261025110000_shared_registry.sql"),
-  migration("20261025110100_worker_privileges.sql"),
-  migration("20261025110200_worker_registry_access.sql"),
-];
+const registryFixture = new URL("./fixtures/shared-registry.sql", import.meta.url);
 
 async function setupDatabase() {
   const db = new PGlite();
@@ -19,7 +14,7 @@ async function setupDatabase() {
     CREATE SCHEMA auth;
     CREATE TABLE auth.users (id uuid PRIMARY KEY);
   `);
-  for (const file of migrations) await db.exec(await readFile(file, "utf8"));
+  await db.exec(await readFile(registryFixture, "utf8"));
   return db;
 }
 
@@ -30,7 +25,7 @@ async function registerTestOrganization(db, name, ownerUserId) {
 test("migrations are repeatable and do not create application functions", async () => {
   const db = await setupDatabase();
   try {
-    for (const file of migrations) await db.exec(await readFile(file, "utf8"));
+    await db.exec(await readFile(registryFixture, "utf8"));
     const { rows } = await db.query(`
       SELECT routine_name FROM information_schema.routines
        WHERE routine_schema = 'app' AND routine_type = 'FUNCTION'

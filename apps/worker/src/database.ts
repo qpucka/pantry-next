@@ -1,11 +1,34 @@
+export interface DatabaseQueryResult<Row extends object = Record<string, unknown>> {
+  rows: Row[];
+  rowCount?: number | null;
+}
+
+export interface DatabaseClient {
+  query<Row extends object = Record<string, unknown>>(
+    text: string,
+    values?: readonly unknown[],
+  ): Promise<DatabaseQueryResult<Row>>;
+}
+
 const TENANT_SCHEMA_RE = /^tenant_[0-9a-f]{32}$/;
 
-function quoteTenantSchema(schema) {
+function quoteTenantSchema(schema: string): string {
   if (!TENANT_SCHEMA_RE.test(schema)) throw new Error("Invalid trusted tenant schema name");
   return `"${schema}"`;
 }
 
-export async function createTenantSchema(client, schema) {
+export interface OrganizationRecord {
+  id: string;
+  schema_name: string;
+}
+
+export interface RegisterOrganizationInput {
+  name: string;
+  timezone: string;
+  ownerUserId: string;
+}
+
+export async function createTenantSchema(client: DatabaseClient, schema: string): Promise<void> {
   const quoted = quoteTenantSchema(schema);
   await client.query(`CREATE SCHEMA ${quoted}`);
   await client.query(`REVOKE ALL ON SCHEMA ${quoted} FROM PUBLIC`);
@@ -39,15 +62,18 @@ export async function createTenantSchema(client, schema) {
   await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${quoted}.waiting_clients TO cloudflare_hyperdrive_role`);
 }
 
-export async function registerOrganization(client, { name, timezone, ownerUserId }) {
+export async function registerOrganization(
+  client: DatabaseClient,
+  { name, timezone, ownerUserId }: RegisterOrganizationInput,
+): Promise<OrganizationRecord> {
   await client.query("BEGIN");
   try {
-    const result = await client.query(
+    const result = await client.query<OrganizationRecord>(
       "INSERT INTO app.organizations (name, timezone) VALUES ($1, $2) RETURNING id, schema_name",
       [name, timezone],
     );
-    const rows = result.rows ?? result;
-    const organization = rows[0];
+    const organization = result.rows[0];
+    if (!organization) throw new Error("Organization was not created");
     await client.query(
       "INSERT INTO app.organization_memberships (organization_id, user_id, role) VALUES ($1, $2, 'org_admin')",
       [organization.id, ownerUserId],

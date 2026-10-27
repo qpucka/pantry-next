@@ -1,17 +1,27 @@
 const CHANGE_EVENT = JSON.stringify({ type: "changed" });
 const NOTIFICATION_PATH = "/internal/publish";
 
+export interface RealtimeNamespace {
+  idFromName(name: string): DurableObjectId;
+  get(id: DurableObjectId): DurableObjectStub;
+}
+
+export interface RealtimeContext {
+  getWebSockets(): WebSocket[];
+  acceptWebSocket(socket: WebSocket): void;
+}
+
 export class OrganizationRealtimeRoom {
-  constructor(ctx) {
+  private readonly ctx: RealtimeContext;
+
+  constructor(ctx: RealtimeContext) {
     this.ctx = ctx;
   }
 
-  async fetch(request) {
+  async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === NOTIFICATION_PATH && request.method === "POST") {
-      // This endpoint is reached only through the Worker-to-DO binding. Never
-      // forward it from a public Worker route.
       for (const socket of this.ctx.getWebSockets()) {
         try {
           socket.send(CHANGE_EVENT);
@@ -34,9 +44,7 @@ export class OrganizationRealtimeRoom {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  webSocketMessage(socket) {
-    // Clients subscribe to notifications only; they cannot publish into the
-    // room or use it as an application-data channel.
+  webSocketMessage(socket: WebSocket): void {
     try {
       socket.close(1008, "Read-only notification connection");
     } catch {
@@ -44,10 +52,10 @@ export class OrganizationRealtimeRoom {
     }
   }
 
-  webSocketClose() {}
+  webSocketClose(): void {}
 }
 
-export async function publishOrganizationChange(namespace, organizationId) {
+export async function publishOrganizationChange(namespace: RealtimeNamespace | null | undefined, organizationId: string): Promise<void> {
   if (!namespace || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(organizationId ?? "")) {
     throw new Error("Realtime binding and trusted organization UUID are required");
   }
