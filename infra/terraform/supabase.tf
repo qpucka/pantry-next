@@ -66,7 +66,7 @@ resource "terraform_data" "platform_admin_bootstrap" {
         --data "$(jq -cn \
           --arg email "$PLATFORM_ADMIN_EMAIL" \
           --arg password "$PLATFORM_ADMIN_PASSWORD" \
-          '{email: $email, password: $password, email_confirm: true}')"
+          '{email: $email, password: $password, email_confirm: true}')")
 
       if [[ "$status" == "200" || "$status" == "201" ]]; then
         user_id=$(jq -er '.id' "$response")
