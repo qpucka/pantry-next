@@ -18,6 +18,13 @@ interface AuthUser {
   email?: string;
 }
 
+interface SupabaseAuthSession {
+  access_token: string;
+  refresh_token: string;
+  expires_in?: number;
+  user: { id?: string; email?: string };
+}
+
 interface AuthSession {
   access_token: string;
   refresh_token: string;
@@ -111,7 +118,7 @@ function cookieHeader(name: string, value: string, maxAge: number): string {
 }
 
 function appendCookies(headers: Headers, session: AuthSession): Headers {
-  const maxAge = Number.isFinite(session.expires_in) ? session.expires_in : 3600;
+  const maxAge = session.expires_in ?? 3600;
   headers.append("set-cookie", cookieHeader(ACCESS_COOKIE, session.access_token, maxAge));
   headers.append("set-cookie", cookieHeader(REFRESH_COOKIE, session.refresh_token, 60 * 60 * 24 * 30));
   return headers;
@@ -154,7 +161,7 @@ async function requestAuthUser(env: WorkerEnv, accessToken: string): Promise<Aut
   if (!response.ok) return null;
   const user = await response.json() as Partial<AuthUser>;
   if (!UUID_RE.test(user.id ?? "")) return null;
-  return { id: user.id, email: user.email };
+  return { id: user.id as string, email: user.email };
 }
 
 async function requireUser(request: Request, env: WorkerEnv): Promise<AuthContext | null> {
@@ -191,7 +198,7 @@ async function authenticatePassword(env: WorkerEnv, email: string, password: str
   return session as AuthSession;
 }
 
-async function registerOrganization(request, env) {
+async function registerOrganization(request: Request, env: WorkerEnv): Promise<Response> {
   const body = await parseJson(request);
   if (!body) return badRequest("Request body must be a JSON object.");
 
@@ -216,7 +223,7 @@ async function registerOrganization(request, env) {
   }
   const session = await signup.json() as Partial<AuthSession>;
   const userId = session.user?.id;
-  if (!UUID_RE.test(userId ?? "") || !session.access_token || !session.refresh_token) {
+  if (typeof userId !== "string" || !UUID_RE.test(userId) || !session.access_token || !session.refresh_token) {
     return json({ error: "Registration needs account verification before setup can continue." }, 409);
   }
 
@@ -231,7 +238,7 @@ async function registerOrganization(request, env) {
   }
 }
 
-async function login(request, env) {
+async function login(request: Request, env: WorkerEnv): Promise<Response> {
   const body = await parseJson(request);
   if (!body) return badRequest("Request body must be a JSON object.");
   const email = normalizeEmail(body.email);
@@ -242,13 +249,13 @@ async function login(request, env) {
   return json({ user: { id: session.user.id, email: session.user.email } }, 200, sessionHeaders(session));
 }
 
-function authResponse(auth, body, status = 200) {
+function authResponse(auth: AuthContext, body: unknown, status = 200): Response {
   const headers = new Headers({ "cache-control": "no-store" });
   if (auth?.refreshedSession) appendCookies(headers, auth.refreshedSession);
   return json(body, status, headers);
 }
 
-async function currentMemberships(client, userId) {
+async function currentMemberships(client: DatabaseClient, userId: string): Promise<Array<Record<string, unknown>>> {
   const result = await client.query(
     `SELECT m.organization_id, m.role, o.name AS organization_name
        FROM app.organization_memberships m
@@ -260,13 +267,13 @@ async function currentMemberships(client, userId) {
   return result.rows;
 }
 
-async function getCurrentUser(request, env) {
+async function getCurrentUser(request: Request, env: WorkerEnv): Promise<Response> {
   const auth = await requireUser(request, env);
   if (!auth) return json({ error: "Authentication required." }, 401, clearSessionHeaders());
   return authResponse(auth, { user: { id: auth.user.id, email: auth.user.email } });
 }
 
-async function logout(request, env) {
+async function logout(request: Request, env: WorkerEnv): Promise<Response> {
   const accessToken = getCookies(request).get(ACCESS_COOKIE);
   if (accessToken) {
     try {
@@ -278,7 +285,7 @@ async function logout(request, env) {
   return json({ ok: true }, 200, clearSessionHeaders());
 }
 
-async function listOrganizations(request, env) {
+async function listOrganizations(request: Request, env: WorkerEnv): Promise<Response> {
   const auth = await requireUser(request, env);
   if (!auth) return json({ error: "Authentication required." }, 401, clearSessionHeaders());
   return withDatabase(env, async (client) => {
@@ -294,7 +301,15 @@ async function listOrganizations(request, env) {
   });
 }
 
-async function queueApi(request, env, route, organizationId, clientId = null) {
+type QueueRoute = "read" | "check-in" | "shopping" | "clear";
+
+async function queueApi(
+  request: Request,
+  env: WorkerEnv,
+  route: QueueRoute,
+  organizationId: string,
+  clientId: string | null = null,
+): Promise<Response> {
   const auth = await requireUser(request, env);
   if (!auth) return json({ error: "Authentication required." }, 401, clearSessionHeaders());
   const body = request.method === "GET" ? {} : await parseJson(request);
@@ -337,7 +352,7 @@ async function queueApi(request, env, route, organizationId, clientId = null) {
   }
 }
 
-async function connectRealtime(request, env, organizationId) {
+async function connectRealtime(request: Request, env: WorkerEnv, organizationId: string): Promise<Response> {
   if (!UUID_RE.test(organizationId)) return badRequest("Invalid organization.");
   const auth = await requireUser(request, env);
   if (!auth) return json({ error: "Authentication required." }, 401, clearSessionHeaders());
@@ -345,7 +360,7 @@ async function connectRealtime(request, env, organizationId) {
 
   // The requested organization is only a selector. Confirm membership and
   // take the canonical ID from the trusted registry before addressing a room.
-  const membership = await withDatabase(env, async (client) => client.query(
+  const membership = await withDatabase(env, async (client) => client.query<{ organization_id: string }>(
     `SELECT o.id::text AS organization_id
        FROM app.organization_memberships m
        JOIN app.organizations o ON o.id = m.organization_id
@@ -353,7 +368,7 @@ async function connectRealtime(request, env, organizationId) {
     [auth.user.id, organizationId],
   ));
   const trustedOrganizationId = membership.rows[0]?.organization_id;
-  if (!trustedOrganizationId) return json({ error: "Forbidden." }, 403);
+  if (typeof trustedOrganizationId !== "string") return json({ error: "Forbidden." }, 403);
 
   const stub = env.ORG_REALTIME.get(env.ORG_REALTIME.idFromName(trustedOrganizationId));
   const headers = new Headers(request.headers);
@@ -363,7 +378,7 @@ async function connectRealtime(request, env, organizationId) {
   }));
 }
 
-function isTrustedBrowserRequest(request) {
+function isTrustedBrowserRequest(request: Request): boolean {
   const url = new URL(request.url);
   const origin = request.headers.get("origin");
   const fetchSite = request.headers.get("sec-fetch-site");
@@ -381,7 +396,7 @@ function isTrustedBrowserRequest(request) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/") && !isTrustedBrowserRequest(request)) {
       return json({ error: "Cross-origin requests are not allowed." }, 403);
@@ -452,7 +467,7 @@ export default {
       try {
         return await listOrganizations(request, env);
       } catch (error) {
-        if (error?.code === "42501") return json({ error: "Forbidden." }, 403);
+        if (error instanceof Error && "code" in error && error.code === "42501") return json({ error: "Forbidden." }, 403);
         console.error("Platform organization list failed", error instanceof Error ? error.message : "unknown error");
         return json({ error: "Organization list is temporarily unavailable." }, 503);
       }
