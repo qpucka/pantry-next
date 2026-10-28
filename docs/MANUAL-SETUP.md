@@ -53,6 +53,17 @@ Create a Supabase personal access token with access for the Supabase Terraform p
 
 - `SUPABASE_ACCESS_TOKEN`
 
+Create or obtain the project’s server-side service-role key. Add it as this GitHub environment secret:
+
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Choose the initial Platform Administrator credentials and add them as:
+
+- `PLATFORM_ADMIN_EMAIL` (environment variable)
+- `PLATFORM_ADMIN_PASSWORD` (environment secret)
+
+The Terraform bootstrap uses the service-role key only on the GitHub Actions runner to create or locate this Auth user, then inserts its generated UUID into `app.platform_admins`. The key and password are not stored in the repository or exposed to the Worker.
+
 Choose a strong administrator password for the Supabase project and add it as:
 
 - `SUPABASE_DB_PASSWORD`

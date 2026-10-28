@@ -23,6 +23,19 @@ variable "supabase_database_password" {
   nullable    = false
 }
 
+variable "platform_admin_email" {
+  description = "Email address for the initial Platform Administrator Auth user."
+  type        = string
+  nullable    = false
+}
+
+variable "platform_admin_password" {
+  description = "Password for the initial Platform Administrator Auth user."
+  type        = string
+  sensitive   = true
+  nullable    = false
+}
+
 variable "cloudflare_account_id" {
   description = "Cloudflare account that owns the Worker and Hyperdrive configuration."
   type        = string
