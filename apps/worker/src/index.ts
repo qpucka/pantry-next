@@ -5,7 +5,7 @@ import { OrganizationRealtimeRoom, publishOrganizationChange, type RealtimeNames
 
 export { OrganizationRealtimeRoom };
 
-interface WorkerEnv {
+export interface WorkerEnv {
   HYPERDRIVE?: { connectionString: string };
   SUPABASE_URL?: string;
   SUPABASE_PUBLISHABLE_KEY?: string;

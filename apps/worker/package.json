@@ -1,5 +1,5 @@
 {
-  "name": "pantry-next-web",
+  "name": "pantry-next-worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,6 +18,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",
     "@electric-sql/pglite": "^0.3.16",
+    "@types/node": "^22.20.5",
     "typescript": "~5.7.2"
   }
 }

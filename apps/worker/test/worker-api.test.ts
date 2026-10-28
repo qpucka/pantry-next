@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import worker from "../src/index.ts";
+import worker, { type WorkerEnv } from "../src/index.ts";
 
 const minimalEnv = {
   ASSETS: { fetch: async () => new Response("static asset", { status: 200 }) },
-};
+} as unknown as WorkerEnv;
 
 test("health endpoint responds without accessing credentials or database", async () => {
   const response = await worker.fetch(new Request("https://pantry.test/api/health"), minimalEnv);
@@ -25,7 +25,7 @@ test("non-API paths are served from the assets binding", async () => {
 });
 
 test("organization registration rejects missing/invalid fields before external calls", async () => {
-  const cases = [
+  const cases: Array<[Record<string, string>, RegExp]> = [
     [{ organizationName: "Food pantry", email: "admin@example.org", password: "long-enough-password", timezone: "Not/AZone" }, /time zone/i],
     [{ organizationName: "", email: "admin@example.org", password: "long-enough-password", timezone: "America/Chicago" }, /organization name/i],
     [{ organizationName: "Food pantry", email: "not-email", password: "long-enough-password", timezone: "America/Chicago" }, /email/i],
@@ -42,7 +42,8 @@ test("organization registration rejects missing/invalid fields before external c
       minimalEnv,
     );
     assert.equal(response.status, 400);
-    assert.match((await response.json()).error, message);
+    const responseBody = await response.json() as { error: string };
+    assert.match(responseBody.error, message);
   }
 });
 
