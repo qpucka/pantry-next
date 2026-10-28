@@ -43,6 +43,13 @@ resource "cloudflare_worker_version" "initial" {
   main_module        = "index.js"
   deploy             = true
 
+  # This resource establishes the Worker and applies the initial Durable
+  # Object migration. Later application versions are deployed by Wrangler;
+  # Terraform must not replace this upload and replay migration tag v1.
+  lifecycle {
+    ignore_changes = all
+  }
+
   migrations = {
     new_sqlite_classes = ["OrganizationRealtimeRoom"]
     new_tag            = "v1"
