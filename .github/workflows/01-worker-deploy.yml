@@ -107,6 +107,16 @@ jobs:
             echo "SUPABASE_PUBLISHABLE_KEY=$supabase_publishable_key"
           } >> "$GITHUB_ENV"
 
+      - name: Validate Worker bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d ../web/dist
+          npx --yes wrangler@4.152.0 deploy \
+            --config wrangler.json \
+            --name "$WORKER_NAME" \
+            --dry-run
+
       - name: Upload Worker version
         shell: bash
         env:
