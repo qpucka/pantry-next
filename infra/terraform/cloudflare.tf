@@ -9,7 +9,7 @@ resource "cloudflare_hyperdrive_config" "supabase" {
 
   origin = {
     scheme   = "postgresql"
-    host     = "db.${supabase_project.pantry_next.id}.supabase.co"
+    host     = "db.${supabase_project.pantrynext.id}.supabase.co"
     port     = 5432
     database = "postgres"
     user     = "cloudflare_hyperdrive_role"
@@ -25,7 +25,7 @@ resource "cloudflare_hyperdrive_config" "supabase" {
   depends_on = [terraform_data.database_setup]
 }
 
-resource "cloudflare_worker" "pantry_next" {
+resource "cloudflare_worker" "pantrynext" {
   account_id = var.cloudflare_account_id
   name       = "pantrynext"
 
@@ -41,5 +41,5 @@ output "hyperdrive_id" {
 
 output "worker_name" {
   description = "Cloudflare Worker name."
-  value       = cloudflare_worker.pantry_next.name
+  value       = cloudflare_worker.pantrynext.name
 }

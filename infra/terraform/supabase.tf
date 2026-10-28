@@ -1,7 +1,7 @@
 # Reads SUPABASE_ACCESS_TOKEN from the environment.
 provider "supabase" {}
 
-resource "supabase_project" "pantry_next" {
+resource "supabase_project" "pantrynext" {
   organization_id   = var.supabase_organization_id
   name              = var.supabase_project_name
   database_password = var.supabase_database_password
@@ -11,14 +11,14 @@ resource "supabase_project" "pantry_next" {
 # Bootstrap the initial database setup once, after the Supabase project is
 # provisioned. SQL changes alone do not cause this resource to run again.
 resource "terraform_data" "database_setup" {
-  depends_on = [supabase_project.pantry_next]
+  depends_on = [supabase_project.pantrynext]
 
   provisioner "local-exec" {
     interpreter = ["/usr/bin/env", "bash", "-c"]
     working_dir = "${path.root}/../.."
 
     environment = {
-      SUPABASE_PROJECT_REF   = supabase_project.pantry_next.id
+      SUPABASE_PROJECT_REF   = supabase_project.pantrynext.id
       HYPERDRIVE_DB_PASSWORD = var.hyperdrive_database_password
     }
 
@@ -49,7 +49,7 @@ resource "terraform_data" "platform_admin_bootstrap" {
     working_dir = "${path.root}/../.."
 
     environment = {
-      SUPABASE_URL            = "https://${supabase_project.pantry_next.id}.supabase.co"
+      SUPABASE_URL            = "https://${supabase_project.pantrynext.id}.supabase.co"
       PLATFORM_ADMIN_EMAIL    = var.platform_admin_email
       PLATFORM_ADMIN_PASSWORD = var.platform_admin_password
     }
@@ -93,28 +93,28 @@ resource "terraform_data" "platform_admin_bootstrap" {
 
       npx --yes supabase@2.122.0 db query \
         --linked \
-        --project-ref "${supabase_project.pantry_next.id}" \
+        --project-ref "${supabase_project.pantrynext.id}" \
         --file "$rendered"
     EOT
   }
 }
 
-data "supabase_apikeys" "pantry_next" {
-  project_ref = supabase_project.pantry_next.id
+data "supabase_apikeys" "pantrynext" {
+  project_ref = supabase_project.pantrynext.id
 }
 
 output "supabase_project_ref" {
   description = "Supabase project reference."
-  value       = supabase_project.pantry_next.id
+  value       = supabase_project.pantrynext.id
 }
 
 output "supabase_url" {
   description = "Supabase project API URL used by the Worker."
-  value       = "https://${supabase_project.pantry_next.id}.supabase.co"
+  value       = "https://${supabase_project.pantrynext.id}.supabase.co"
 }
 
 output "supabase_publishable_key" {
   description = "Supabase publishable API key used by the browser through the Worker."
-  value       = data.supabase_apikeys.pantry_next.publishable_key
+  value       = data.supabase_apikeys.pantrynext.publishable_key
   sensitive   = true
 }
