@@ -4,6 +4,10 @@ This file records confirmed product and technical decisions. Newer decisions sup
 
 ## Product and user experience
 
+### 2026-10-28 — Distinct administrator terminology
+
+Use **Platform Administrator** for the app-wide role and **Organization Administrator** for the organization-scoped role. Avoid the ambiguous term “admin” when referring to permissions. In code and the database, the app-wide role remains represented by `platform_admins`, while the organization role remains the `org_admin` membership role. Staff use the `staff` role, and limited device users use the **Tablet User** term for the `tablet` role. A person may hold Platform Administrator and Organization Administrator permissions independently.
+
 ### 2026-10-24 — Simple experience for busy, non-technical users
 
 Setup and daily workflows should minimize steps, jargon, and repeated work while retaining staff assistance as an alternative to self-service.

@@ -11,7 +11,7 @@ Cloudflare Worker
   └── Durable Object room per organization
 ```
 
-The Worker is the application boundary. It authenticates requests, checks organization membership and roles, derives trusted tenant schema names, performs database operations, and serves the browser assets.
+The Worker is the application boundary. It authenticates requests, checks organization membership and roles, derives trusted tenant schema names, performs database operations, and serves the browser assets. Platform Administrator authorization is installation-wide; Organization Administrator authorization is limited to memberships in specific organizations.
 
 Postgres is the source of truth. Durable Objects provide tenant-scoped realtime notification rooms; they do not replace database reads or store authoritative queue state.
 
@@ -96,7 +96,7 @@ Terraform owns infrastructure. Wrangler owns later application-code versions. Th
 
 ## Database and tenant boundary
 
-The private shared `app` schema contains organizations, memberships, platform admins, and setup-link records. Each organization receives a separate schema derived from its trusted registry UUID. The Worker never accepts a schema name from the browser.
+The private shared `app` schema contains organizations, memberships, Platform Administrators in `app.platform_admins`, and setup-link records. Each organization receives a separate schema derived from its trusted registry UUID. Organization Administrator permissions are represented by `org_admin` memberships. The Worker never accepts a schema name from the browser.
 
 The runtime database role can access the application’s tenant data and may create tenant schemas as required by registration. Worker authorization and Postgres constraints protect tenant behavior; schema separation alone is not treated as an authorization boundary.
 
