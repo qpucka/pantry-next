@@ -49,9 +49,11 @@ const REFRESH_COOKIE = "pantry_refresh";
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 
 function json(data: unknown, status = 200, headers: HeadersInit = {}): Response {
+  const responseHeaders = new Headers(JSON_HEADERS);
+  new Headers(headers).forEach((value, key) => responseHeaders.append(key, value));
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...JSON_HEADERS, ...headers },
+    headers: responseHeaders,
   });
 }
 

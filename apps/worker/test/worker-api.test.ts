@@ -53,6 +53,33 @@ const authEnv = {
   SUPABASE_PUBLISHABLE_KEY: "test-key",
 };
 
+test("successful login preserves both session cookies", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    access_token: "access-token",
+    refresh_token: "refresh-token",
+    expires_in: 3600,
+    user: { id: "00000000-0000-0000-0000-000000000001", email: "admin@example.org" },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  try {
+    const response = await worker.fetch(
+      new Request("https://pantry.test/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "https://pantry.test" },
+        body: JSON.stringify({ email: "admin@example.org", password: "long-enough-password" }),
+      }),
+      authEnv,
+    );
+    assert.equal(response.status, 200);
+    const cookies = response.headers.getSetCookie();
+    assert.equal(cookies.length, 2);
+    assert.match(cookies[0], /^pantry_access=access-token;/);
+    assert.match(cookies[1], /^pantry_refresh=refresh-token;/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("registration reports an Auth signup failure without touching the database", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response("signup failed", { status: 400 });
