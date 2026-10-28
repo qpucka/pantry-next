@@ -30,7 +30,7 @@ Record confirmed requirements as facts and label unresolved assumptions clearly.
 
 Start with a small slice that exercises the real boundary: browser assets, Worker routing, authentication, authorization, Hyperdrive database access, and tests. Do not build the entire product at once.
 
-Use the existing JavaScript Worker and Supabase setup. Keep initial database bootstrap separate from future schema changes and verify that local tests cannot mutate production.
+Use the strict TypeScript Worker and Supabase setup. Run Worker tests with Node.js 26’s native TypeScript type-stripping. Keep initial database bootstrap separate from future schema changes and verify that local tests use isolated fixtures rather than production.
 
 ### 3. Give bounded tasks
 
@@ -61,6 +61,6 @@ Use current official Cloudflare and Supabase documentation for platform-specific
 3. Review security and data-boundary decisions.
 4. Make one bounded change.
 5. Inspect the diff.
-6. Run relevant tests, formatting, validation, or dry-run checks.
+6. Run relevant checks. For the Worker, run `npm run typecheck`, `npm test`, and a Wrangler dry run when bundling or deployment configuration changes.
 7. Record durable decisions in `DECISIONS.md`.
 8. Commit the verified change before the next substantial task.

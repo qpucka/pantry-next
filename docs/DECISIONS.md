@@ -74,6 +74,10 @@ After Terraform establishes the Worker and bindings, the Worker deployment workf
 
 Terraform defines the Worker name and exposes it as an output. `apps/worker/wrangler.json` contains Worker packaging and binding configuration but does not duplicate the Worker name. The future React + TypeScript browser application belongs in `apps/web/`.
 
+### 2026-10-27 — Strict TypeScript Worker and Node.js 26 test runtime
+
+The Cloudflare Worker and its tests use TypeScript with strict checking. The Worker package is named `pantry-next-worker`. CI and local Worker tests use Node.js 26; tests run through Node 26’s native TypeScript type-stripping, and the Worker typecheck includes both source and test files. Local database tests use isolated test fixtures rather than production Supabase migrations or setup SQL.
+
 ## Product direction beyond the initial release
 
 ### 2026-10-18 — Household-centered Pantry product

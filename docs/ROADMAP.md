@@ -45,7 +45,6 @@ The application is not production-ready. The browser interfaces, security review
 - Verify the deployed Worker against Supabase through Hyperdrive.
 - Review database role privileges and reduce them if the application design permits.
 - Add local development and integration setup that cannot target production accidentally.
-- Resolve the existing test fixture/migration layout and make the test suite pass.
 
 ### 2. Complete identity and organization administration
 
@@ -68,7 +67,7 @@ The application is not production-ready. The browser interfaces, security review
 
 - Test concurrent check-ins, queue ordering, timestamps, queue clearing, and tenant isolation.
 - Test role restrictions, CSRF protections, setup links, and TV credentials.
-- Run formatting, tests, Worker dry runs, and integration tests in CI.
+- Run strict TypeScript checks, tests, Worker dry runs, and integration tests in CI.
 - Document operational recovery, password rotation, and deployment procedures.
 
 ## Phase 2 — Distributable pantry-management product

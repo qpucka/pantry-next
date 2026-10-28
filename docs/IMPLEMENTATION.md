@@ -24,19 +24,23 @@ Postgres is the source of truth. Durable Objects provide tenant-scoped realtime 
 - **Supabase:** Postgres database, Auth API, and project management.
 - **Terraform:** Supabase project, initial database bootstrap execution, Hyperdrive, Worker, initial Worker version, bindings, and first Durable Object migration.
 - **GitHub Actions:** Terraform provisioning and later application deployments.
-- **JavaScript:** Worker application code; this is not a React or TypeScript application.
+- **Node.js 26:** CI and local Worker test runtime.
+- **TypeScript:** Strictly type-checked Worker application and test code.
+- **Worker package:** `pantry-next-worker`.
 
 ## Repository responsibilities
 
 ### `apps/worker/`
 
-- `src/index.js`: Worker entrypoint, routing, authentication, authorization, and API handlers.
-- `src/database.js`: database operations and tenant schema provisioning.
-- `src/queue.js`: queue behavior and role-aware operations.
-- `src/realtime.js`: Durable Object implementation and change notifications.
+- `src/index.ts`: Worker entrypoint, routing, authentication, authorization, and API handlers.
+- `src/database.ts`: database operations and tenant schema provisioning.
+- `src/queue.ts`: queue behavior and role-aware operations.
+- `src/realtime.ts`: Durable Object implementation and change notifications.
+- `src/pg.d.ts`: local declaration for the `pg` client used by the Worker.
 - `public/`: static browser assets.
 - `wrangler.json`: application bundling, assets, Durable Object binding, and migration configuration.
-- `test/`: Worker and database behavior tests.
+- `test/*.test.ts`: strictly typed Worker and database behavior tests.
+- `test/fixtures/`: isolated SQL fixtures for local tests; these are not production migrations or bootstrap input.
 
 ### `apps/web/`
 
@@ -77,11 +81,16 @@ The Hyperdrive ID is kept in Terraform state. It is not copied to R2 as a separa
 
 The `01-worker-deploy` workflow:
 
-1. Reads the Worker name and Supabase public settings from Terraform state.
-2. Installs `apps/worker` dependencies with `npm ci`.
-3. Uses `wrangler versions upload` to upload the application code.
-4. Relies on Wrangler’s strict binding inheritance to preserve the existing Hyperdrive binding without knowing its ID.
-5. Uses `wrangler versions deploy` to route 100% of traffic to the uploaded version.
+1. Sets up Node.js 26.
+2. Builds `apps/web` with `npm ci` and `npm run build`.
+3. Installs `apps/worker` dependencies with `npm ci`.
+4. Runs the strict Worker typecheck and TypeScript test suite.
+5. Reads the Worker name and Supabase public settings from Terraform state.
+6. Uses `wrangler versions upload` to upload the application code.
+7. Relies on Wrangler’s strict binding inheritance to preserve the existing Hyperdrive binding without knowing its ID.
+8. Uses `wrangler versions deploy` to route 100% of traffic to the uploaded version.
+
+Worker tests run with Node 26’s native TypeScript type-stripping through `npm test`. The Worker package typechecks both `src/**/*.ts` and `test/**/*.ts` with strict TypeScript checking.
 
 Terraform owns infrastructure. Wrangler owns later application-code versions. The two workflows are serialized through the shared concurrency group.
 
