@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy Pantry Next Worker
+    name: Deploy PantryNext Worker
     runs-on: ubuntu-latest
     environment: terraform
     defaults:
@@ -155,8 +155,8 @@ jobs:
           )" || fail "Cloudflare did not return the account workers.dev subdomain"
           worker_url="https://${WORKER_NAME}.${account_subdomain}.workers.dev/"
           expected_build="${GITHUB_SHA::7}"
-          page_file="$RUNNER_TEMP/pantry-next-page.html"
-          asset_file="$RUNNER_TEMP/pantry-next-asset.js"
+          page_file="$RUNNER_TEMP/pantrynext-page.html"
+          asset_file="$RUNNER_TEMP/pantrynext-asset.js"
 
           echo "Checking deployed Worker URL: $worker_url"
           echo "Expected build hash: $expected_build"

@@ -1,6 +1,6 @@
 # Roadmap
 
-Pantry Next is being built in two broad stages:
+PantryNext is being built in two broad stages:
 
 1. Establish a reusable multi-tenant foundation and a functioning waiting-room app that can be used by multiple organizations.
 2. Expand that foundation into a distributable pantry-management application with client records, services, appointments, waiting-room operations, electronic forms, identity options, and payments.

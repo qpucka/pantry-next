@@ -1,4 +1,4 @@
-# Pantry Next Project Context
+# PantryNext Project Context
 
 ## Purpose
 

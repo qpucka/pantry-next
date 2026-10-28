@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Use an LLM as a pair programmer while building Pantry Next. The developer remains responsible for product decisions, security review, and confirming compliance requirements. Work in small, reviewable changes and require explanations for unfamiliar code.
+Use an LLM as a pair programmer while building PantryNext. The developer remains responsible for product decisions, security review, and confirming compliance requirements. Work in small, reviewable changes and require explanations for unfamiliar code.
 
 ## Project context documents
 
