@@ -64,6 +64,7 @@ h1 { font-size: clamp(2.25rem, 8vw, 4.5rem); line-height: 0.98; margin: 0; }
 h2 { font-size: 1.1rem; margin: 0; }
 .message { color: #51635e; font-size: 1.05rem; line-height: 1.6; margin: 1.5rem 0 2rem; }
 .message strong { color: #18302b; }
+.section-label { color: #71817b; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.1em; margin: 0 0 0.75rem; text-transform: uppercase; }
 
 .tabs {
   border-bottom: 1px solid #d9d2c3;

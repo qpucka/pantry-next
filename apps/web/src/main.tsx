@@ -29,6 +29,15 @@ interface OrganizationsResponse {
   memberships: Membership[];
 }
 
+interface PlatformOrganizationsResponse {
+  organizations: Array<{
+    id: string;
+    name: string;
+    timezone: string;
+    created_at: string;
+  }>;
+}
+
 interface RegisterForm {
   organizationName: string;
   email: string;
@@ -67,6 +76,8 @@ function initialTimezone(): string {
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [platformOrganizations, setPlatformOrganizations] = useState<PlatformOrganizationsResponse["organizations"]>([]);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [authView, setAuthView] = useState<AuthView>("landing");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -77,10 +88,25 @@ function App() {
     try {
       const session = await api<SessionResponse>("/api/auth/me");
       setUser(session.user);
-      const organizations = await api<OrganizationsResponse>("/api/organizations");
-      setMemberships(organizations.memberships);
+      try {
+        const platform = await api<PlatformOrganizationsResponse>("/api/platform/organizations");
+        setIsPlatformAdmin(true);
+        setPlatformOrganizations(platform.organizations);
+        setMemberships([]);
+      } catch (requestError) {
+        if (requestError instanceof Error && "status" in requestError && requestError.status === 403) {
+          const organizations = await api<OrganizationsResponse>("/api/organizations");
+          setIsPlatformAdmin(false);
+          setPlatformOrganizations([]);
+          setMemberships(organizations.memberships);
+        } else {
+          throw requestError;
+        }
+      }
     } catch {
       setUser(null);
+      setIsPlatformAdmin(false);
+      setPlatformOrganizations([]);
       setMemberships([]);
     } finally {
       setLoading(false);
@@ -169,30 +195,20 @@ function App() {
           <div className="card-heading">
             <div>
               <p className="eyebrow">PantryNext</p>
-              <h1 id="workspace-title">Your organizations</h1>
+              <h1 id="workspace-title">{isPlatformAdmin ? "Platform administration" : "Your organizations"}</h1>
             </div>
             <button className="button button-secondary" type="button" onClick={() => void handleLogout()} disabled={busy}>
               Sign out
             </button>
           </div>
           <p className="message">Signed in as <strong>{user.email || "your account"}</strong>.</p>
+          {isPlatformAdmin ? (
+            <PlatformAdminOrganizations organizations={platformOrganizations} />
+          ) : (
+            <OrganizationMemberships memberships={memberships} />
+          )}
           {signupNotice && <div className="success" role="status">{signupNotice}</div>}
           {error && <ErrorMessage message={error} />}
-          {memberships.length === 0 ? (
-            <div className="empty-state">You do not belong to an organization yet.</div>
-          ) : (
-            <div className="organization-list">
-              {memberships.map((membership) => (
-                <article className="organization" key={membership.organization_id}>
-                  <div>
-                    <h2>{membership.organization_name}</h2>
-                    <p>{formatRole(membership.role)}</p>
-                  </div>
-                  <span className="status-badge">Ready</span>
-                </article>
-              ))}
-            </div>
-          )}
         </section>
       </Page>
     );
@@ -231,6 +247,43 @@ function App() {
         )}
       </section>
     </Page>
+  );
+}
+
+function OrganizationMemberships({ memberships }: { memberships: Membership[] }) {
+  if (memberships.length === 0) return <div className="empty-state">You do not belong to an organization yet.</div>;
+  return (
+    <div className="organization-list">
+      {memberships.map((membership) => (
+        <article className="organization" key={membership.organization_id}>
+          <div>
+            <h2>{membership.organization_name}</h2>
+            <p>{formatRole(membership.role)}</p>
+          </div>
+          <span className="status-badge">Ready</span>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function PlatformAdminOrganizations({ organizations }: { organizations: PlatformOrganizationsResponse["organizations"] }) {
+  if (organizations.length === 0) return <div className="empty-state">No organizations have been created yet.</div>;
+  return (
+    <div>
+      <p className="section-label">Organizations</p>
+      <div className="organization-list">
+        {organizations.map((organization) => (
+          <article className="organization" key={organization.id}>
+            <div>
+              <h2>{organization.name}</h2>
+              <p>{organization.timezone}</p>
+            </div>
+            <span className="status-badge">Active</span>
+          </article>
+        ))}
+      </div>
+    </div>
   );
 }
 
