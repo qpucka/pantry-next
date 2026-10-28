@@ -41,8 +41,9 @@ The application is not production-ready. The browser interfaces, security review
 
 ### 1. Stabilize the foundation
 
+- Smoke-check the deployed main page: confirm the React waiting-room page loads and the footer displays the seven-character commit hash.
+- Defer deployed API, authentication, Hyperdrive, tenant queue, and realtime validation until the application flows are more complete.
 - Confirm Supabase Auth settings for registration without email delivery.
-- Verify the deployed Worker against Supabase through Hyperdrive.
 - Review database role privileges and reduce them if the application design permits.
 - Add local development and integration setup that cannot target production accidentally.
 
