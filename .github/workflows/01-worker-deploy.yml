@@ -151,6 +151,30 @@ jobs:
             --percentage 100 \
             --yes
 
+      - name: Smoke-check deployed main page
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          account_subdomain="$(
+            curl --fail --silent --show-error \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" |
+              jq -er '.result.subdomain'
+          )"
+          worker_url="https://${WORKER_NAME}.${account_subdomain}.workers.dev/"
+          expected_build="${GITHUB_SHA::7}"
+
+          page="$(curl --fail --silent --show-error "$worker_url")"
+          grep -q '<div id="root"></div>' <<< "$page"
+          asset_path="$(grep -oE 'src="[^" ]+\.js"' <<< "$page" | head -n 1 | cut -d'"' -f2)"
+          [[ -n "$asset_path" ]]
+          asset_url="${worker_url%/}${asset_path}"
+          asset="$(curl --fail --silent --show-error "$asset_url")"
+          grep -q "$expected_build" <<< "$asset"
+
+          echo "Smoke check passed for $worker_url (build $expected_build)"
+
       - name: Clean up
         if: always()
         shell: bash
