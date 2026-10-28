@@ -47,6 +47,66 @@ test("organization registration rejects missing/invalid fields before external c
   }
 });
 
+const authEnv = {
+  ...minimalEnv,
+  SUPABASE_URL: "https://supabase.test",
+  SUPABASE_PUBLISHABLE_KEY: "test-key",
+};
+
+test("registration reports an Auth signup failure without touching the database", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response("signup failed", { status: 400 });
+  try {
+    const response = await worker.fetch(
+      new Request("https://pantry.test/api/register", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "https://pantry.test" },
+        body: JSON.stringify({
+          organizationName: "Food pantry",
+          email: "admin@example.org",
+          password: "long-enough-password",
+          timezone: "America/Chicago",
+        }),
+      }),
+      authEnv,
+    );
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), {
+      error: "Registration could not be completed. Check the details or sign in if you already have an account.",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("registration reports when Auth requires account verification", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    user: { id: "00000000-0000-0000-0000-000000000001" },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  try {
+    const response = await worker.fetch(
+      new Request("https://pantry.test/api/register", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "https://pantry.test" },
+        body: JSON.stringify({
+          organizationName: "Food pantry",
+          email: "admin@example.org",
+          password: "long-enough-password",
+          timezone: "America/Chicago",
+        }),
+      }),
+      authEnv,
+    );
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), {
+      error: "Registration needs account verification before setup can continue.",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("cross-origin and origin-less browser writes are rejected", async () => {
   const crossOrigin = await worker.fetch(
     new Request("https://pantry.test/api/register", {

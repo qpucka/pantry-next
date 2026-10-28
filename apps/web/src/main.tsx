@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
@@ -20,6 +20,11 @@ interface SessionResponse {
   user: User;
 }
 
+interface RegisterResponse {
+  organizationId: string;
+  organizationName: string;
+}
+
 interface OrganizationsResponse {
   memberships: Membership[];
 }
@@ -31,7 +36,11 @@ interface RegisterForm {
   timezone: string;
 }
 
-type View = "sign-in" | "register";
+interface ApiError extends Error {
+  status: number;
+}
+
+type AuthView = "landing" | "sign-in" | "register";
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
@@ -44,8 +53,9 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = typeof body?.error === "string" ? body.error : "Something went wrong. Please try again.";
-    throw new Error(message);
+    const error = new Error(typeof body?.error === "string" ? body.error : "Something went wrong. Please try again.") as ApiError;
+    error.status = response.status;
+    throw error;
   }
   return body as T;
 }
@@ -57,10 +67,11 @@ function initialTimezone(): string {
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [view, setView] = useState<View>("sign-in");
+  const [authView, setAuthView] = useState<AuthView>("landing");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [signupNotice, setSignupNotice] = useState("");
 
   async function loadSession(): Promise<void> {
     try {
@@ -79,6 +90,18 @@ function App() {
   useEffect(() => {
     void loadSession();
   }, []);
+
+  function showAuthView(nextView: "sign-in" | "register"): void {
+    setAuthView(nextView);
+    setError("");
+    setSignupNotice("");
+  }
+
+  function returnToLanding(): void {
+    setAuthView("landing");
+    setError("");
+    setSignupNotice("");
+  }
 
   async function handleSignIn(email: string, password: string): Promise<void> {
     setBusy(true);
@@ -99,14 +122,22 @@ function App() {
   async function handleRegister(form: RegisterForm): Promise<void> {
     setBusy(true);
     setError("");
+    setSignupNotice("");
     try {
-      await api("/api/register", {
+      const registration = await api<RegisterResponse>("/api/register", {
         method: "POST",
         body: JSON.stringify(form),
       });
+      setSignupNotice(`${registration.organizationName} was created successfully.`);
       await loadSession();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Registration failed.");
+      if (requestError instanceof Error && "status" in requestError && requestError.status === 503) {
+        setError(`${requestError.message} You can return to sign in without creating another account.`);
+      } else if (requestError instanceof Error && "status" in requestError && requestError.status === 409) {
+        setError(requestError.message);
+      } else {
+        setError(requestError instanceof Error ? requestError.message : "Sign-up failed.");
+      }
     } finally {
       setBusy(false);
     }
@@ -119,7 +150,7 @@ function App() {
       await api("/api/auth/logout", { method: "POST" });
       setUser(null);
       setMemberships([]);
-      setView("sign-in");
+      setAuthView("landing");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Sign-out failed.");
     } finally {
@@ -128,7 +159,7 @@ function App() {
   }
 
   if (loading) {
-    return <Page><div className="loading" role="status">Loading your pantry workspace…</div></Page>;
+    return <Page><div className="loading" role="status">Loading your PantryNext account…</div></Page>;
   }
 
   if (user) {
@@ -137,7 +168,7 @@ function App() {
         <section className="card workspace" aria-labelledby="workspace-title">
           <div className="card-heading">
             <div>
-              <p className="eyebrow">Pantry Next</p>
+              <p className="eyebrow">PantryNext</p>
               <h1 id="workspace-title">Your organizations</h1>
             </div>
             <button className="button button-secondary" type="button" onClick={() => void handleLogout()} disabled={busy}>
@@ -145,6 +176,7 @@ function App() {
             </button>
           </div>
           <p className="message">Signed in as <strong>{user.email || "your account"}</strong>.</p>
+          {signupNotice && <div className="success" role="status">{signupNotice}</div>}
           {error && <ErrorMessage message={error} />}
           {memberships.length === 0 ? (
             <div className="empty-state">You do not belong to an organization yet.</div>
@@ -166,20 +198,33 @@ function App() {
     );
   }
 
+  if (authView === "landing") {
+    return (
+      <Page>
+        <section className="card landing-card" aria-labelledby="landing-title">
+          <p className="eyebrow">PantryNext</p>
+          <h1 id="landing-title">Simple organization management</h1>
+          <p className="message">A clear, shared place for your organization to get work done.</p>
+          <div className="choice-list">
+            <button className="button" type="button" onClick={() => showAuthView("sign-in")}>Log in</button>
+            <button className="button button-secondary choice-secondary" type="button" onClick={() => showAuthView("register")}>Sign up</button>
+          </div>
+        </section>
+      </Page>
+    );
+  }
+
   return (
     <Page>
       <section className="card auth-card" aria-labelledby="auth-title">
-        <p className="eyebrow">Pantry Next</p>
-        <h1 id="auth-title">{view === "sign-in" ? "Welcome back" : "Create your pantry"}</h1>
+        <button className="back-link" type="button" onClick={returnToLanding}>← Back</button>
+        <p className="eyebrow">PantryNext</p>
+        <h1 id="auth-title">{authView === "sign-in" ? "Log in" : "Sign up"}</h1>
         <p className="message">
-          {view === "sign-in" ? "Sign in to manage your organization’s waiting room." : "Set up an organization and invite your team as the app grows."}
+          {authView === "sign-in" ? "Log in to access your organizations." : "Create your PantryNext organization and account."}
         </p>
-        <div className="tabs" role="tablist" aria-label="Account actions">
-          <button className={view === "sign-in" ? "tab active" : "tab"} type="button" onClick={() => { setView("sign-in"); setError(""); }}>Sign in</button>
-          <button className={view === "register" ? "tab active" : "tab"} type="button" onClick={() => { setView("register"); setError(""); }}>Register</button>
-        </div>
         {error && <ErrorMessage message={error} />}
-        {view === "sign-in" ? (
+        {authView === "sign-in" ? (
           <SignInForm busy={busy} onSubmit={(email, password) => void handleSignIn(email, password)} />
         ) : (
           <RegisterForm busy={busy} onSubmit={(form) => void handleRegister(form)} />
@@ -200,7 +245,7 @@ function SignInForm({ busy, onSubmit }: { busy: boolean; onSubmit: (email: strin
     <form className="form" onSubmit={submit}>
       <label>Email<input name="email" type="email" autoComplete="email" required /></label>
       <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
-      <button className="button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+      <button className="button" type="submit" disabled={busy}>{busy ? "Logging in…" : "Log in"}</button>
     </form>
   );
 }
@@ -223,7 +268,7 @@ function RegisterForm({ busy, onSubmit }: { busy: boolean; onSubmit: (form: Regi
       <label>Email<input name="email" type="email" autoComplete="email" required /></label>
       <label>Password<input name="password" type="password" autoComplete="new-password" minLength={12} maxLength={128} required /><span className="hint">Use at least 12 characters.</span></label>
       <label>Time zone<input name="timezone" type="text" defaultValue={initialTimezone()} maxLength={80} required /></label>
-      <button className="button" type="submit" disabled={busy}>{busy ? "Creating organization…" : "Create organization"}</button>
+      <button className="button" type="submit" disabled={busy}>{busy ? "Creating account…" : "Create account"}</button>
     </form>
   );
 }
@@ -236,7 +281,7 @@ function formatRole(role: string): string {
   return role.replace("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function Page({ children }: { children: React.ReactNode }) {
+function Page({ children }: { children: ReactNode }) {
   return (
     <main className="shell">
       {children}

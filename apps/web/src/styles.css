@@ -36,6 +36,13 @@ button:disabled { cursor: wait; opacity: 0.65; }
 }
 
 .auth-card { max-width: 32rem; }
+.landing-card { max-width: 36rem; }
+.choice-list { display: grid; gap: 0.75rem; }
+.choice-secondary { background: transparent; border: 1px solid #bcb5a8; color: #18302b; }
+.choice-secondary:hover:not(:disabled) { background: #f4f0e8; }
+.back-link { background: transparent; border: 0; color: #51635e; font-size: 0.9rem; margin: -0.5rem 0 2rem; padding: 0; }
+.back-link:hover { color: #18302b; text-decoration: underline; }
+.success { background: #e3f2e9; border: 1px solid #9ac8ab; border-radius: 0.65rem; color: #216a4e; margin-bottom: 1rem; padding: 0.8rem 0.9rem; }
 
 .card-heading {
   align-items: flex-start;
