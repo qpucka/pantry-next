@@ -6,7 +6,7 @@ terraform {
   # because it comes from a GitHub environment variable. Backend blocks cannot
   # reference Terraform variables, so everything here must be a literal.
   backend "s3" {
-    key                         = "pantry-next/terraform.tfstate"
+    key                         = "pantrynext/terraform.tfstate"
     region                      = "auto"
     skip_credentials_validation = true
     skip_metadata_api_check     = true

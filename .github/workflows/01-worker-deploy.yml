@@ -123,39 +123,19 @@ jobs:
             --name "$WORKER_NAME" \
             --dry-run
 
-      - name: Upload Worker version
+      - name: Deploy Worker
         shell: bash
-        env:
-          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-upload.jsonl
         run: |
           set -euo pipefail
-          rm -f "$WRANGLER_OUTPUT_FILE_PATH"
 
-          # The rendered config includes the Terraform-owned Hyperdrive ID.
-          # The committed config keeps only the ${HYPERDRIVE_ID} placeholder.
-          npx --yes wrangler@4.152.0 versions upload \
+          # Terraform owns the Worker and Hyperdrive infrastructure. Wrangler
+          # owns the initial and all subsequent application versions, including
+          # the Durable Object migration declared in wrangler.ci.json.
+          npx --yes wrangler@4.152.0 deploy \
             --config wrangler.ci.json \
             --name "$WORKER_NAME" \
             --var "SUPABASE_URL:$SUPABASE_URL" \
             --var "SUPABASE_PUBLISHABLE_KEY:$SUPABASE_PUBLISHABLE_KEY"
-
-          version_id="$(jq -r '.version_id // empty' "$WRANGLER_OUTPUT_FILE_PATH")"
-          if [[ -z "$version_id" ]]; then
-            echo "Wrangler did not return an uploaded version ID." >&2
-            cat "$WRANGLER_OUTPUT_FILE_PATH" >&2
-            exit 1
-          fi
-          echo "WORKER_VERSION_ID=$version_id" >> "$GITHUB_ENV"
-
-      - name: Deploy Worker version
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx --yes wrangler@4.152.0 versions deploy \
-            --name "$WORKER_NAME" \
-            --version-id "$WORKER_VERSION_ID" \
-            --percentage 100 \
-            --yes
 
       - name: Smoke-check deployed main page
         shell: bash
@@ -203,6 +183,14 @@ jobs:
             fail "JavaScript asset did not contain the expected build hash"
 
           echo "Smoke check passed for $worker_url (build $expected_build)"
+
+      - name: Reminder - disable Supabase email confirmation
+        shell: bash
+        run: |
+          echo ""
+          echo "REMINDER: For the current temporary signup flow, disable Supabase Email confirmation manually."
+          echo "Supabase Dashboard -> Authentication -> Providers -> Email -> Confirm email -> Off"
+          echo "This reminder does not change Supabase settings or affect deployment status."
 
       - name: Clean up
         if: always()

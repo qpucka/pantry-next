@@ -26,7 +26,7 @@ Postgres is the source of truth. Durable Objects provide tenant-scoped realtime 
 - **GitHub Actions:** Terraform provisioning and later application deployments.
 - **Node.js 26:** CI and local Worker test runtime.
 - **TypeScript:** Strictly type-checked Worker application and test code.
-- **Worker package:** `pantry-next-worker`.
+- **Worker package:** `pantrynext-worker`.
 
 ## Repository responsibilities
 

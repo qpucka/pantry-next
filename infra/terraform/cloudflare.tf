@@ -5,7 +5,7 @@ provider "cloudflare" {}
 # created it. The bootstrap resource runs once after Supabase project creation.
 resource "cloudflare_hyperdrive_config" "supabase" {
   account_id = var.cloudflare_account_id
-  name       = "pantry-next-supabase"
+  name       = "pantrynext-supabase"
 
   origin = {
     scheme   = "postgresql"
@@ -27,69 +27,11 @@ resource "cloudflare_hyperdrive_config" "supabase" {
 
 resource "cloudflare_worker" "pantry_next" {
   account_id = var.cloudflare_account_id
-  name       = "pantry-next"
+  name       = "pantrynext"
 
   subdomain = {
     enabled = true
   }
-}
-
-# Deploy a minimal initial version so Terraform can establish the Worker and
-# Hyperdrive binding before later application-code deployments.
-resource "cloudflare_worker_version" "initial" {
-  account_id         = var.cloudflare_account_id
-  worker_id          = cloudflare_worker.pantry_next.id
-  compatibility_date = "2026-10-26"
-  main_module        = "index.js"
-  deploy             = true
-
-  # This resource establishes the Worker and applies the initial Durable
-  # Object migration. Later application versions are deployed by Wrangler;
-  # Terraform must not replace this upload and replay migration tag v1.
-  lifecycle {
-    ignore_changes = all
-  }
-
-  migrations = {
-    new_sqlite_classes = ["OrganizationRealtimeRoom"]
-    new_tag            = "v1"
-  }
-
-  modules = [{
-    name         = "index.js"
-    content_type = "application/javascript+module"
-    content_base64 = base64encode(<<-JS
-      export class OrganizationRealtimeRoom {
-        constructor(ctx) {
-          this.ctx = ctx;
-        }
-
-        async fetch() {
-          return new Response("Not implemented", { status: 501 });
-        }
-      }
-
-      export default {
-        async fetch() {
-          return new Response("Pantry Next Worker initialized");
-        }
-      };
-    JS
-    )
-  }]
-
-  bindings = [
-    {
-      name = "HYPERDRIVE"
-      type = "hyperdrive"
-      id   = cloudflare_hyperdrive_config.supabase.id
-    },
-    {
-      name       = "ORG_REALTIME"
-      type       = "durable_object_namespace"
-      class_name = "OrganizationRealtimeRoom"
-    }
-  ]
 }
 
 output "hyperdrive_id" {

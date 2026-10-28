@@ -9,7 +9,7 @@ const minimalEnv = {
 test("health endpoint responds without accessing credentials or database", async () => {
   const response = await worker.fetch(new Request("https://pantry.test/api/health"), minimalEnv);
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { status: "ok", service: "pantry-next" });
+  assert.deepEqual(await response.json(), { status: "ok", service: "pantrynext" });
 });
 
 test("unknown API routes return JSON 404", async () => {

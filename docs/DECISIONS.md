@@ -80,7 +80,7 @@ Terraform defines the Worker name and exposes it as an output. `apps/worker/wran
 
 ### 2026-10-27 — Strict TypeScript Worker and Node.js 26 test runtime
 
-The Cloudflare Worker and its tests use TypeScript with strict checking. The Worker package is named `pantry-next-worker`. CI and local Worker tests use Node.js 26; tests run through Node 26’s native TypeScript type-stripping, and the Worker typecheck includes both source and test files. Local database tests use isolated test fixtures rather than production Supabase migrations or setup SQL.
+The Cloudflare Worker and its tests use TypeScript with strict checking. The Worker package is named `pantrynext-worker`. CI and local Worker tests use Node.js 26; tests run through Node 26’s native TypeScript type-stripping, and the Worker typecheck includes both source and test files. Local database tests use isolated test fixtures rather than production Supabase migrations or setup SQL.
 
 ## Product direction beyond the initial release
 

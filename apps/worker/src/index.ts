@@ -405,7 +405,7 @@ export default {
     }
 
     if (url.pathname === "/api/health" && request.method === "GET") {
-      return json({ status: "ok", service: "pantry-next" });
+      return json({ status: "ok", service: "pantrynext" });
     }
     if (url.pathname === "/api/register" && request.method === "POST") {
       try {
