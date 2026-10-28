@@ -49,6 +49,7 @@ resource "terraform_data" "platform_admin_bootstrap" {
     working_dir = "${path.root}/../.."
 
     environment = {
+      SUPABASE_PROJECT_REF    = supabase_project.pantrynext.id
       SUPABASE_URL            = "https://${supabase_project.pantrynext.id}.supabase.co"
       PLATFORM_ADMIN_EMAIL    = var.platform_admin_email
       PLATFORM_ADMIN_PASSWORD = var.platform_admin_password
@@ -56,6 +57,21 @@ resource "terraform_data" "platform_admin_bootstrap" {
 
     command = <<-EOT
       set -euo pipefail
+
+      api_keys="$RUNNER_TEMP/project-api-keys.json"
+      api_keys_status=$(curl --silent --show-error --output "$api_keys" --write-out '%%{http_code}' \
+        -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+        "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/api-keys")
+
+      [[ "$api_keys_status" == "200" ]] || { cat "$api_keys" >&2; exit 1; }
+      SUPABASE_SERVICE_ROLE_KEY=$(jq -er '
+        map(select(.name == "service_role" or .name == "secret" or .type == "secret"))
+        | .[0].api_key
+      ' "$api_keys") || {
+        printf 'Could not find a server-side Supabase API key for project %s.\n' "$SUPABASE_PROJECT_REF" >&2
+        exit 1
+      }
+      export SUPABASE_SERVICE_ROLE_KEY
 
       response="$RUNNER_TEMP/platform-admin-response.json"
       status=$(curl --silent --show-error --output "$response" --write-out '%%{http_code}' \
