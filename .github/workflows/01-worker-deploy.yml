@@ -88,9 +88,15 @@ jobs:
             -backend-config="bucket=$CLOUDFLARE_R2_BUCKET"
 
           worker_name="$(terraform -chdir=infra/terraform output -raw worker_name)"
+          hyperdrive_id="$(terraform -chdir=infra/terraform output -raw hyperdrive_id)"
           supabase_url="$(terraform -chdir=infra/terraform output -raw supabase_url)"
           supabase_publishable_key="$(terraform -chdir=infra/terraform output -raw supabase_publishable_key)"
           echo "::add-mask::$supabase_publishable_key"
+
+          export HYPERDRIVE_ID="$hyperdrive_id"
+          envsubst '${HYPERDRIVE_ID}' \
+            < apps/worker/wrangler.json \
+            > apps/worker/wrangler.ci.json
 
           missing=()
           [[ -n "$worker_name" ]] || missing+=(worker_name)
@@ -113,7 +119,7 @@ jobs:
           set -euo pipefail
           test -d ../web/dist
           npx --yes wrangler@4.152.0 deploy \
-            --config wrangler.json \
+            --config wrangler.ci.json \
             --name "$WORKER_NAME" \
             --dry-run
 
@@ -125,10 +131,10 @@ jobs:
           set -euo pipefail
           rm -f "$WRANGLER_OUTPUT_FILE_PATH"
 
-          # Wrangler uploads a new version with bindings_inherit=strict. Since
-          # this config omits HYPERDRIVE, Cloudflare inherits that binding from
-          # the existing Worker version without requiring its Hyperdrive ID.
+          # The rendered config includes the Terraform-owned Hyperdrive ID.
+          # The committed config keeps only the ${HYPERDRIVE_ID} placeholder.
           npx --yes wrangler@4.152.0 versions upload \
+            --config wrangler.ci.json \
             --name "$WORKER_NAME" \
             --var "SUPABASE_URL:$SUPABASE_URL" \
             --var "SUPABASE_PUBLISHABLE_KEY:$SUPABASE_PUBLISHABLE_KEY"
@@ -179,4 +185,4 @@ jobs:
         if: always()
         shell: bash
         working-directory: .
-        run: rm -f "$RUNNER_TEMP/wrangler-upload.jsonl" && rm -rf infra/terraform/.terraform
+        run: rm -f "$RUNNER_TEMP/wrangler-upload.jsonl" apps/worker/wrangler.ci.json && rm -rf infra/terraform/.terraform

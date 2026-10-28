@@ -4,6 +4,12 @@
   "compatibility_date": "2026-10-24",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "${HYPERDRIVE_ID}"
+    }
+  ],
   "durable_objects": {
     "bindings": [
       { "name": "ORG_REALTIME", "class_name": "OrganizationRealtimeRoom" }
