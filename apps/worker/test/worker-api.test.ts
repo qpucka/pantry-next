@@ -29,7 +29,6 @@ test("organization registration rejects missing/invalid fields before external c
     [{ organizationName: "Food pantry", email: "admin@example.org", password: "long-enough-password", timezone: "Not/AZone" }, /time zone/i],
     [{ organizationName: "", email: "admin@example.org", password: "long-enough-password", timezone: "America/Chicago" }, /organization name/i],
     [{ organizationName: "Food pantry", email: "not-email", password: "long-enough-password", timezone: "America/Chicago" }, /email/i],
-    [{ organizationName: "Food pantry", email: "admin@example.org", password: "short", timezone: "America/Chicago" }, /password/i],
   ];
 
   for (const [body, message] of cases) {

@@ -211,7 +211,7 @@ async function registerOrganization(request: Request, env: WorkerEnv): Promise<R
 
   if (!name || name.length > 160) return badRequest("Enter an organization name (160 characters or fewer).");
   if (!email) return badRequest("Enter a valid email address.");
-  if (password.length < 12 || password.length > 128) return badRequest("Password must be between 12 and 128 characters.");
+  if (password.length > 128) return badRequest("Password must be 128 characters or fewer.");
   if (!validTimezone(timezone)) return badRequest("A valid IANA time zone is required.");
 
   // Supabase Auth confirmations must be disabled in project settings for this

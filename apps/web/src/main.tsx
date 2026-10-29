@@ -338,8 +338,7 @@ function RegisterForm({ busy, onSubmit }: { busy: boolean; onSubmit: (form: Regi
       <label>Email<input name="email" type="email" autoComplete="email" required /></label>
       <label>
         Password
-        <PasswordInput name="password" autoComplete="new-password" minLength={12} maxLength={128} value={password} onChange={setPassword} showPassword={showPassword} onToggle={() => setShowPassword((visible) => !visible)} />
-        <span className="hint">Use at least 12 characters.</span>
+        <PasswordInput name="password" autoComplete="new-password" maxLength={128} value={password} onChange={setPassword} showPassword={showPassword} onToggle={() => setShowPassword((visible) => !visible)} />
         {passwordScore !== null && <PasswordStrength score={passwordScore} minimumScore={MINIMUM_PASSWORD_SCORE} />}
       </label>
       <label>Time zone<input name="timezone" type="text" defaultValue={initialTimezone()} maxLength={80} required /></label>
