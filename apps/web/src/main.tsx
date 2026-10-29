@@ -288,6 +288,8 @@ function PlatformAdminOrganizations({ organizations }: { organizations: Platform
 }
 
 function SignInForm({ busy, onSubmit }: { busy: boolean; onSubmit: (email: string, password: string) => void }) {
+  const [showPassword, setShowPassword] = useState(false);
+
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -297,13 +299,18 @@ function SignInForm({ busy, onSubmit }: { busy: boolean; onSubmit: (email: strin
   return (
     <form className="form" onSubmit={submit}>
       <label>Email<input name="email" type="email" autoComplete="email" required /></label>
-      <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
+      <label>
+        Password
+        <PasswordInput name="password" autoComplete="current-password" showPassword={showPassword} onToggle={() => setShowPassword((visible) => !visible)} />
+      </label>
       <button className="button" type="submit" disabled={busy}>{busy ? "Logging in…" : "Log in"}</button>
     </form>
   );
 }
 
 function RegisterForm({ busy, onSubmit }: { busy: boolean; onSubmit: (form: RegisterForm) => void }) {
+  const [showPassword, setShowPassword] = useState(false);
+
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -319,10 +326,46 @@ function RegisterForm({ busy, onSubmit }: { busy: boolean; onSubmit: (form: Regi
     <form className="form" onSubmit={submit}>
       <label>Organization name<input name="organizationName" type="text" autoComplete="organization" maxLength={160} required /></label>
       <label>Email<input name="email" type="email" autoComplete="email" required /></label>
-      <label>Password<input name="password" type="password" autoComplete="new-password" minLength={12} maxLength={128} required /><span className="hint">Use at least 12 characters.</span></label>
+      <label>
+        Password
+        <PasswordInput name="password" autoComplete="new-password" minLength={12} maxLength={128} showPassword={showPassword} onToggle={() => setShowPassword((visible) => !visible)} />
+        <span className="hint">Use at least 12 characters.</span>
+      </label>
       <label>Time zone<input name="timezone" type="text" defaultValue={initialTimezone()} maxLength={80} required /></label>
       <button className="button" type="submit" disabled={busy}>{busy ? "Creating account…" : "Create account"}</button>
     </form>
+  );
+}
+
+function PasswordInput({
+  name,
+  autoComplete,
+  minLength,
+  maxLength,
+  showPassword,
+  onToggle,
+}: {
+  name: string;
+  autoComplete: string;
+  minLength?: number;
+  maxLength?: number;
+  showPassword: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <span className="password-input">
+      <input
+        name={name}
+        type={showPassword ? "text" : "password"}
+        autoComplete={autoComplete}
+        minLength={minLength}
+        maxLength={maxLength}
+        required
+      />
+      <button className="password-toggle" type="button" onClick={onToggle} aria-label={showPassword ? "Hide password" : "Show password"}>
+        {showPassword ? "Hide" : "Show"}
+      </button>
+    </span>
   );
 }
 
