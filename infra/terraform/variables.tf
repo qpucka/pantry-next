@@ -23,14 +23,14 @@ variable "supabase_database_password" {
   nullable    = false
 }
 
-variable "platform_admin_email" {
-  description = "Email address for the initial Platform Administrator Auth user."
+variable "platform_owner_email" {
+  description = "Email address for the initial Platform Owner Auth user."
   type        = string
   nullable    = false
 }
 
-variable "platform_admin_password" {
-  description = "Password for the initial Platform Administrator Auth user."
+variable "platform_owner_password" {
+  description = "Password for the initial Platform Owner Auth user."
   type        = string
   sensitive   = true
   nullable    = false

@@ -55,12 +55,12 @@ Create a Supabase personal access token with access for the Supabase Terraform p
 
 The Terraform bootstrap retrieves the new project’s server-side API key through the Supabase Management API using `SUPABASE_ACCESS_TOKEN`; no separate project-specific service-role secret is required.
 
-Choose the initial Platform Administrator credentials and add them as:
+Choose the initial Platform Owner credentials and add them as:
 
-- `PLATFORM_ADMIN_EMAIL` (environment variable)
-- `PLATFORM_ADMIN_PASSWORD` (environment secret)
+- `PLATFORM_OWNER_EMAIL` (environment variable)
+- `PLATFORM_OWNER_PASSWORD` (environment secret)
 
-The Terraform bootstrap uses the service-role key only on the GitHub Actions runner to create or locate this Auth user, then inserts its generated UUID into `app.platform_admins`. The key and password are not stored in the repository or exposed to the Worker.
+The Terraform bootstrap creates or locates this Auth user and promotes its generated UUID to `platform_owner` in `app.platform_admins`. The key and password are not stored in the repository or exposed to the Worker.
 
 Choose a strong administrator password for the Supabase project and add it as:
 

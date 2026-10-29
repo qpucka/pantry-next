@@ -31,8 +31,25 @@ CREATE INDEX IF NOT EXISTS organization_memberships_user_id_idx
 
 CREATE TABLE IF NOT EXISTS app.platform_admins (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  role text NOT NULL DEFAULT 'platform_admin' CHECK (role IN ('platform_owner', 'platform_admin')),
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS app.platform_permissions (
+  key text PRIMARY KEY,
+  description text NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS app.platform_admin_permissions (
+  user_id uuid NOT NULL REFERENCES app.platform_admins(user_id) ON DELETE CASCADE,
+  permission_key text NOT NULL REFERENCES app.platform_permissions(key) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, permission_key)
+);
+
+INSERT INTO app.platform_permissions (key, description)
+VALUES ('organizations.read', 'View organizations across the PantryNext installation.')
+ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS app.staff_setup_links (
   token_hash bytea PRIMARY KEY CHECK (octet_length(token_hash) = 32),

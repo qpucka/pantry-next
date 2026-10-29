@@ -38,10 +38,10 @@ resource "terraform_data" "database_setup" {
   }
 }
 
-# Create the initial Auth identity and promote it to Platform Administrator.
+# Create the initial Auth identity and promote it to Platform Owner.
 # The service-role key is read only from the Terraform runner environment and
 # is never stored in Terraform state or sent to the browser.
-resource "terraform_data" "platform_admin_bootstrap" {
+resource "terraform_data" "platform_owner_bootstrap" {
   depends_on = [terraform_data.database_setup]
 
   provisioner "local-exec" {
@@ -51,8 +51,8 @@ resource "terraform_data" "platform_admin_bootstrap" {
     environment = {
       SUPABASE_PROJECT_REF    = supabase_project.pantrynext.id
       SUPABASE_URL            = "https://${supabase_project.pantrynext.id}.supabase.co"
-      PLATFORM_ADMIN_EMAIL    = var.platform_admin_email
-      PLATFORM_ADMIN_PASSWORD = var.platform_admin_password
+      PLATFORM_OWNER_EMAIL    = var.platform_owner_email
+      PLATFORM_OWNER_PASSWORD = var.platform_owner_password
     }
 
     command = <<-EOT
@@ -80,8 +80,8 @@ resource "terraform_data" "platform_admin_bootstrap" {
         -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
         -H 'Content-Type: application/json' \
         --data "$(jq -cn \
-          --arg email "$PLATFORM_ADMIN_EMAIL" \
-          --arg password "$PLATFORM_ADMIN_PASSWORD" \
+          --arg email "$PLATFORM_OWNER_EMAIL" \
+          --arg password "$PLATFORM_OWNER_PASSWORD" \
           '{email: $email, password: $password, email_confirm: true}')")
 
       if [[ "$status" == "200" || "$status" == "201" ]]; then
@@ -94,7 +94,7 @@ resource "terraform_data" "platform_admin_bootstrap" {
           -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
 
         [[ "$lookup_status" == "200" ]] || { cat "$lookup" >&2; exit 1; }
-        user_id=$(jq -er --arg email "$PLATFORM_ADMIN_EMAIL" '.users[] | select(.email == $email) | .id' "$lookup" | head -n 1) || {
+        user_id=$(jq -er --arg email "$PLATFORM_OWNER_EMAIL" '.users[] | select(.email == $email) | .id' "$lookup" | head -n 1) || {
           printf 'Auth user already exists, but the configured email was not found in the admin user list.\n' >&2
           exit 1
         }
@@ -103,9 +103,9 @@ resource "terraform_data" "platform_admin_bootstrap" {
         exit 1
       fi
 
-      rendered="$RUNNER_TEMP/03-bootstrap-platform-admin.sql"
+      rendered="$RUNNER_TEMP/03-bootstrap-platform-owner.sql"
       PLATFORM_ADMIN_USER_ID="$user_id" envsubst '$${PLATFORM_ADMIN_USER_ID}' \
-        < supabase/setup/03-bootstrap-platform-admin.sql > "$rendered"
+        < supabase/setup/03-bootstrap-platform-owner.sql > "$rendered"
 
       npx --yes supabase@2.122.0 db query \
         --linked \

@@ -29,8 +29,8 @@ jobs:
       TF_VAR_supabase_organization_id:     ${{ vars.SUPABASE_ORG_ID }}
       TF_VAR_supabase_project_name:      ${{ vars.SUPABASE_PROJECT_NAME }}
       TF_VAR_supabase_region:            ${{ vars.SUPABASE_REGION }}
-      TF_VAR_platform_admin_email:        ${{ vars.PLATFORM_ADMIN_EMAIL }}
-      TF_VAR_platform_admin_password:     ${{ secrets.PLATFORM_ADMIN_PASSWORD }}
+      TF_VAR_platform_owner_email:        ${{ vars.PLATFORM_OWNER_EMAIL }}
+      TF_VAR_platform_owner_password:     ${{ secrets.PLATFORM_OWNER_PASSWORD }}
       TF_VAR_cloudflare_account_id:       ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
     steps:
@@ -71,8 +71,8 @@ jobs:
             TF_VAR_supabase_organization_id
             TF_VAR_supabase_project_name
             TF_VAR_supabase_region
-            TF_VAR_platform_admin_email
-            TF_VAR_platform_admin_password
+            TF_VAR_platform_owner_email
+            TF_VAR_platform_owner_password
             TF_VAR_cloudflare_account_id
           )
 

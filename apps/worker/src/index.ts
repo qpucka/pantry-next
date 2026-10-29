@@ -291,11 +291,21 @@ async function listOrganizations(request: Request, env: WorkerEnv): Promise<Resp
   const auth = await requireUser(request, env);
   if (!auth) return json({ error: "Authentication required." }, 401, clearSessionHeaders());
   return withDatabase(env, async (client) => {
-    const isPlatformAdmin = await client.query(
-      "SELECT 1 FROM app.platform_admins WHERE user_id = $1",
+    const platformAdmin = await client.query<{ role: "platform_owner" | "platform_admin" }>(
+      "SELECT role FROM app.platform_admins WHERE user_id = $1",
       [auth.user.id],
     );
-    if (isPlatformAdmin.rowCount === 0) return json({ error: "Forbidden." }, 403);
+    const role = platformAdmin.rows[0]?.role;
+    if (!role) return json({ error: "Forbidden." }, 403);
+    if (role === "platform_admin") {
+      const permission = await client.query(
+        `SELECT 1
+           FROM app.platform_admin_permissions
+          WHERE user_id = $1 AND permission_key = 'organizations.read'`,
+        [auth.user.id],
+      );
+      if (permission.rowCount === 0) return json({ error: "Forbidden." }, 403);
+    }
     const result = await client.query(
       "SELECT id, name, timezone, created_at FROM app.organizations ORDER BY created_at DESC, id",
     );
