@@ -73,7 +73,7 @@ resource "terraform_data" "platform_owner_bootstrap" {
       }
       export SUPABASE_SERVICE_ROLE_KEY
 
-      response="$RUNNER_TEMP/platform-admin-response.json"
+      response="$RUNNER_TEMP/platform-owner-response.json"
       status=$(curl --silent --show-error --output "$response" --write-out '%%{http_code}' \
         -X POST "$SUPABASE_URL/auth/v1/admin/users" \
         -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
@@ -87,7 +87,7 @@ resource "terraform_data" "platform_owner_bootstrap" {
       if [[ "$status" == "200" || "$status" == "201" ]]; then
         user_id=$(jq -er '.id' "$response")
       elif [[ "$status" == "422" ]]; then
-        lookup="$RUNNER_TEMP/platform-admin-lookup.json"
+        lookup="$RUNNER_TEMP/platform-owner-lookup.json"
         lookup_status=$(curl --silent --show-error --output "$lookup" --write-out '%%{http_code}' \
           "$SUPABASE_URL/auth/v1/admin/users?per_page=1000" \
           -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
@@ -104,7 +104,7 @@ resource "terraform_data" "platform_owner_bootstrap" {
       fi
 
       rendered="$RUNNER_TEMP/03-bootstrap-platform-owner.sql"
-      PLATFORM_ADMIN_USER_ID="$user_id" envsubst '$${PLATFORM_ADMIN_USER_ID}' \
+      PLATFORM_OWNER_USER_ID="$user_id" envsubst '$${PLATFORM_OWNER_USER_ID}' \
         < supabase/setup/03-bootstrap-platform-owner.sql > "$rendered"
 
       npx --yes supabase@2.122.0 db query \
