@@ -161,21 +161,29 @@ jobs:
           echo "Checking deployed Worker URL: $worker_url"
           echo "Expected build hash: $expected_build"
 
-          page_status="$(curl --silent --show-error --output "$page_file" --write-out '%{http_code}' "$worker_url")" || \
-            fail "request to the deployed main page failed"
-          echo "Main page HTTP status: $page_status"
-          [[ "$page_status" == "200" ]] || fail "main page returned HTTP $page_status"
-
-          grep -Fq '<div id="root"></div>' "$page_file" || \
-            fail "main page did not contain the React root element"
-
-          asset_path="$(grep -oE 'src="[^" ]+\.js"' "$page_file" | head -n 1 | cut -d'"' -f2)"
-          [[ -n "$asset_path" ]] || fail "main page did not identify a JavaScript asset"
-          echo "JavaScript asset path: $asset_path"
-
-          asset_url="${worker_url%/}${asset_path}"
           asset_verified=false
           for attempt in {1..10}; do
+            page_status="$(curl --silent --show-error --output "$page_file" --write-out '%{http_code}' "$worker_url")" || \
+              fail "request to the deployed main page failed"
+            echo "Main page attempt $attempt/10 HTTP status: $page_status"
+            if [[ "$page_status" != "200" ]]; then
+              [[ "$attempt" == "10" ]] || sleep 1
+              continue
+            fi
+
+            if ! grep -Fq '<div id="root"></div>' "$page_file"; then
+              [[ "$attempt" == "10" ]] || sleep 1
+              continue
+            fi
+
+            asset_path="$(grep -oE 'src="[^" ]+\.js"' "$page_file" | head -n 1 | cut -d'"' -f2)"
+            if [[ -z "$asset_path" ]]; then
+              [[ "$attempt" == "10" ]] || sleep 1
+              continue
+            fi
+            echo "JavaScript asset path attempt $attempt/10: $asset_path"
+
+            asset_url="${worker_url%/}${asset_path}"
             asset_status="$(curl --silent --show-error --output "$asset_file" --write-out '%{http_code}' "$asset_url")" || \
               fail "request to the JavaScript asset failed"
             echo "JavaScript asset attempt $attempt/10 HTTP status: $asset_status"
@@ -187,7 +195,7 @@ jobs:
           done
 
           [[ "$asset_verified" == true ]] || \
-            fail "JavaScript asset did not contain the expected build hash after 10 attempts"
+            fail "deployed HTML and JavaScript asset did not contain the expected build hash after 10 attempts"
 
           echo "Smoke check passed for $worker_url (build $expected_build)"
 
