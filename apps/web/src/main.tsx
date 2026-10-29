@@ -1,9 +1,17 @@
+import { ZxcvbnFactory } from "@zxcvbn-ts/core";
+import * as zxcvbnCommonPackage from "@zxcvbn-ts/language-common";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const commitSha = import.meta.env.VITE_COMMIT_SHA || "local";
+const MINIMUM_PASSWORD_SCORE = 0;
+
+const passwordStrength = new ZxcvbnFactory({
+  graphs: zxcvbnCommonPackage.adjacencyGraphs,
+  dictionary: zxcvbnCommonPackage.dictionary,
+});
 
 interface User {
   id: string;
@@ -310,6 +318,8 @@ function SignInForm({ busy, onSubmit }: { busy: boolean; onSubmit: (email: strin
 
 function RegisterForm({ busy, onSubmit }: { busy: boolean; onSubmit: (form: RegisterForm) => void }) {
   const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const passwordScore = password ? passwordStrength.check(password).score : null;
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -328,8 +338,9 @@ function RegisterForm({ busy, onSubmit }: { busy: boolean; onSubmit: (form: Regi
       <label>Email<input name="email" type="email" autoComplete="email" required /></label>
       <label>
         Password
-        <PasswordInput name="password" autoComplete="new-password" minLength={12} maxLength={128} showPassword={showPassword} onToggle={() => setShowPassword((visible) => !visible)} />
+        <PasswordInput name="password" autoComplete="new-password" minLength={12} maxLength={128} value={password} onChange={setPassword} showPassword={showPassword} onToggle={() => setShowPassword((visible) => !visible)} />
         <span className="hint">Use at least 12 characters.</span>
+        {passwordScore !== null && <PasswordStrength score={passwordScore} minimumScore={MINIMUM_PASSWORD_SCORE} />}
       </label>
       <label>Time zone<input name="timezone" type="text" defaultValue={initialTimezone()} maxLength={80} required /></label>
       <button className="button" type="submit" disabled={busy}>{busy ? "Creating account…" : "Create account"}</button>
@@ -342,6 +353,8 @@ function PasswordInput({
   autoComplete,
   minLength,
   maxLength,
+  value,
+  onChange,
   showPassword,
   onToggle,
 }: {
@@ -349,6 +362,8 @@ function PasswordInput({
   autoComplete: string;
   minLength?: number;
   maxLength?: number;
+  value?: string;
+  onChange?: (value: string) => void;
   showPassword: boolean;
   onToggle: () => void;
 }) {
@@ -360,11 +375,23 @@ function PasswordInput({
         autoComplete={autoComplete}
         minLength={minLength}
         maxLength={maxLength}
+        value={value}
+        onChange={onChange ? (event) => onChange(event.currentTarget.value) : undefined}
         required
       />
       <button className="password-toggle" type="button" onClick={onToggle} aria-label={showPassword ? "Hide password" : "Show password"}>
         {showPassword ? "Hide" : "Show"}
       </button>
+    </span>
+  );
+}
+
+function PasswordStrength({ score, minimumScore }: { score: number; minimumScore: number }) {
+  const labels = ["Very weak", "Weak", "Fair", "Strong", "Very strong"];
+  const label = labels[score] || labels[0];
+  return (
+    <span className={score >= minimumScore ? "password-strength accepted" : "password-strength"} role="status">
+      Strength: {label} (score {score}/4)
     </span>
   );
 }
