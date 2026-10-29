@@ -174,13 +174,20 @@ jobs:
           echo "JavaScript asset path: $asset_path"
 
           asset_url="${worker_url%/}${asset_path}"
-          asset_status="$(curl --silent --show-error --output "$asset_file" --write-out '%{http_code}' "$asset_url")" || \
-            fail "request to the JavaScript asset failed"
-          echo "JavaScript asset HTTP status: $asset_status"
-          [[ "$asset_status" == "200" ]] || fail "JavaScript asset returned HTTP $asset_status"
+          asset_verified=false
+          for attempt in {1..10}; do
+            asset_status="$(curl --silent --show-error --output "$asset_file" --write-out '%{http_code}' "$asset_url")" || \
+              fail "request to the JavaScript asset failed"
+            echo "JavaScript asset attempt $attempt/10 HTTP status: $asset_status"
+            if [[ "$asset_status" == "200" ]] && grep -Fq -- "$expected_build" "$asset_file"; then
+              asset_verified=true
+              break
+            fi
+            [[ "$attempt" == "10" ]] || sleep 1
+          done
 
-          grep -Fq -- "$expected_build" "$asset_file" || \
-            fail "JavaScript asset did not contain the expected build hash"
+          [[ "$asset_verified" == true ]] || \
+            fail "JavaScript asset did not contain the expected build hash after 10 attempts"
 
           echo "Smoke check passed for $worker_url (build $expected_build)"
 
